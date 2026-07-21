@@ -145,7 +145,7 @@
   <div class="app-header">
     <div>
       <h1>⚙️ Kỹ Thuật Cơ Điện</h1>
-      <div class="ver">Phiên bản: V1.3.2</div>
+      <div class="ver">Phiên bản: V1.4.0</div>
     </div>
     <div class="row" style="gap:8px;">
       <div class="role-chip" id="roleChip" onclick="doLogout()">—</div>
@@ -177,7 +177,14 @@
 
   <!-- ============ TAB: TÀI KHOẢN ============ -->
   <div id="tab-taikhoan" style="display:none;">
+    <div class="subtabbar">
+      <button id="sub-tk-tk" class="active" onclick="switchTKSub('tk')">Tài khoản</button>
+      <button id="sub-tk-doimk" onclick="switchTKSub('doimk')">🔒 Đổi mật khẩu</button>
+      <button id="sub-tk-luutru" onclick="switchTKSub('luutru')">💾 Sao lưu</button>
+      <button id="sub-tk-lichsu" onclick="switchTKSub('lichsu')">📜 Lịch sử truy xuất</button>
+    </div>
     <div class="container">
+    <div id="view-tk-tk">
       <div class="card">
         <h3>Đang đăng nhập</h3>
         <div class="small" id="curAccountBox"></div>
@@ -200,6 +207,33 @@
         <button class="btn btn-primary" onclick="addAccount()">➕ Thêm tài khoản</button>
       </div>
       <div id="accountListBox"></div>
+    </div>
+    <div id="view-tk-doimk" style="display:none;">
+      <div class="card">
+        <h3>Đổi mật khẩu của tôi</h3>
+        <label>Mật khẩu hiện tại</label>
+        <input id="dmk_hienTai" type="text" placeholder="Mật khẩu hiện tại">
+        <label>Mật khẩu mới</label>
+        <input id="dmk_moi" type="text" placeholder="Mật khẩu mới">
+        <label>Nhập lại mật khẩu mới</label>
+        <input id="dmk_moiLai" type="text" placeholder="Nhập lại mật khẩu mới">
+        <button class="btn btn-primary" onclick="doiMatKhau()">✓ Đổi mật khẩu</button>
+      </div>
+    </div>
+    <div id="view-tk-luutru" style="display:none;">
+      <div class="card">
+        <h3>💾 Sao lưu toàn bộ dữ liệu</h3>
+        <p class="muted small">Tải về 1 file JSON chứa toàn bộ dữ liệu app (thiết bị, bảo trì, phiếu sửa chữa, kho lạnh, nhiệt độ, điều phối, tài khoản). Nên tải định kỳ để phòng sự cố mất dữ liệu.</p>
+        <button class="btn btn-primary" onclick="taiXuongSaoLuu()">⬇ Tải xuống sao lưu (.json)</button>
+      </div>
+    </div>
+    <div id="view-tk-lichsu" style="display:none;">
+      <div class="card">
+        <h3>📜 Lịch sử truy xuất</h3>
+        <p class="muted small">Ghi lại các hành động chính trong app: đăng nhập, tạo/duyệt/cấp vật tư/hoàn thành phiếu, sửa danh mục, đo nhiệt độ, giao việc... — không ghi từng cú chạm/xem màn hình.</p>
+      </div>
+      <div id="activityLogBox"></div>
+    </div>
     </div>
   </div>
 
@@ -230,6 +264,7 @@
       <button class="sc-filter" data-f="hoan_thanh" onclick="filterSC('hoan_thanh')">Hoàn thành</button>
     </div>
     <div class="container">
+      <input id="scSearchInput" placeholder="🔍 Tìm theo tên máy hoặc mã phiếu..." style="margin-top:10px;" oninput="renderSuaChuaList()">
       <div id="view-sc-list"></div>
     </div>
   </div>
@@ -322,6 +357,7 @@ async function doBootstrapAccount(){
   await db.collection('cd_users').add({username, password, displayName, quyen});
   currentUser = {username, displayName, quyen};
   localStorage.setItem(CUR_USER_KEY, JSON.stringify({username}));
+  logHoatDong("Tạo tài khoản Quản lý đầu tiên & đăng nhập", displayName);
   showToast("Đã tạo tài khoản Quản lý đầu tiên");
 }
 function doLogin(){
@@ -333,6 +369,7 @@ function doLogin(){
   errEl.textContent = '';
   currentUser = {username:acc.username, displayName:acc.displayName, quyen:acc.quyen||{}};
   localStorage.setItem(CUR_USER_KEY, JSON.stringify({username:acc.username}));
+  logHoatDong("Đăng nhập", "");
   renderUserChip();
   document.getElementById('loginScreen').style.display='none';
   document.getElementById('mainApp').style.display='block';
@@ -371,6 +408,7 @@ async function addAccount(){
     dieuPhoi: document.getElementById('tk_q_dieuPhoi').checked,
   };
   await db.collection('cd_users').add({username, password, displayName, quyen});
+  logHoatDong("Tạo tài khoản mới", displayName+" ("+username+")");
   ['tk_displayName','tk_username','tk_password'].forEach(id=>document.getElementById(id).value='');
   showToast("Đã thêm tài khoản "+displayName);
 }
@@ -391,6 +429,7 @@ async function saveEditAccount(id){
     dieuPhoi: document.getElementById('ea_q_dieuPhoi-'+id).checked,
   };
   await db.collection('cd_users').doc(id).update({displayName, username, password, quyen});
+  logHoatDong("Sửa tài khoản", displayName+" ("+username+")");
   editingAccId = null;
   showToast("Đã cập nhật tài khoản");
   if(currentUser && currentUser.username!==username){
@@ -400,7 +439,9 @@ async function saveEditAccount(id){
 }
 async function deleteAccount(id){
   if(!confirm("Xoá tài khoản này?")) return;
+  const acc = userList.find(u=>u.id===id);
   await db.collection('cd_users').doc(id).delete();
+  logHoatDong("Xoá tài khoản", acc? acc.displayName+" ("+acc.username+")" : id);
   showToast("Đã xoá tài khoản");
 }
 function quyenLabel(q){
@@ -413,6 +454,63 @@ function quyenLabel(q){
   if(q.dieuPhoi) l.push('Điều phối');
   return l.join(', ')||'Không có quyền';
 }
+function switchTKSub(s){
+  activeTKSub = s;
+  ['tk','doimk','luutru','lichsu'].forEach(k=>{
+    document.getElementById('sub-tk-'+k).classList.toggle('active', k===s);
+    document.getElementById('view-tk-'+k).style.display = k===s ? 'block':'none';
+  });
+  if(s==='tk'){ renderCurAccountBox(); renderAccountList(); }
+  else if(s==='lichsu') renderActivityLog();
+}
+async function doiMatKhau(){
+  const hienTai = document.getElementById('dmk_hienTai').value;
+  const moi = document.getElementById('dmk_moi').value;
+  const moiLai = document.getElementById('dmk_moiLai').value;
+  if(!currentUser){ showToast("Chưa đăng nhập"); return; }
+  const acc = userList.find(u=>u.username===currentUser.username);
+  if(!acc || acc.password!==hienTai){ showToast("Mật khẩu hiện tại không đúng"); return; }
+  if(!moi){ showToast("Nhập mật khẩu mới"); return; }
+  if(moi!==moiLai){ showToast("Mật khẩu mới nhập lại không khớp"); return; }
+  await db.collection('cd_users').doc(acc.id).update({password: moi});
+  await logHoatDong("Đổi mật khẩu", "");
+  document.getElementById('dmk_hienTai').value='';
+  document.getElementById('dmk_moi').value='';
+  document.getElementById('dmk_moiLai').value='';
+  showToast("Đã đổi mật khẩu thành công");
+}
+function taiXuongSaoLuu(){
+  const data = {
+    xuatLuc: new Date().toISOString(),
+    thietBi: thietBiList, baoTri: baoTriList, phieuSuaChua: phieuList,
+    khoLanh: khoLanhList, nhietDo: nhietDoList, dieuPhoi: dieuPhoiList,
+    khoVatTu: khoVatTuList, taiKhoan: userList.map(u=>({username:u.username, displayName:u.displayName, quyen:u.quyen})),
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'sao-luu-codien-' + new Date().toISOString().slice(0,10) + '.json';
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+  logHoatDong("Tải xuống sao lưu dữ liệu", "");
+  showToast("Đã tải file sao lưu");
+}
+function renderActivityLog(){
+  const el = document.getElementById('activityLogBox');
+  if(!el) return;
+  if(activityLogList.length===0){ el.innerHTML = '<div class="empty">Chưa có hoạt động nào được ghi lại.</div>'; return; }
+  el.innerHTML = activityLogList.map(a=>`
+    <div class="card" style="padding:10px 14px;">
+      <div class="row">
+        <b class="small">${a.displayName||'—'}</b>
+        <span class="muted small">${fmtDateTime(a.createdAt)}</span>
+      </div>
+      <div class="small" style="margin-top:2px;">${a.hanhDong}${a.chiTiet? ' — '+a.chiTiet : ''}</div>
+    </div>
+  `).join('');
+}
+
 function renderAccountList(){
   const el = document.getElementById('accountListBox');
   if(!el) return;
@@ -455,6 +553,7 @@ function renderAccountList(){
    TAB / SUBTAB SWITCHING
    ============================================================ */
 let activeTab = 'baotri';
+let activeTKSub = 'tk';
 let activeSubBT = 'lich';
 let activeSCFilter = 'all';
 
@@ -471,7 +570,7 @@ function switchTab(t){
   if(t==='baotri') renderBaoTriView();
   else if(t==='suachua') renderSuaChuaList();
   else if(t==='dieuphoi') renderDieuPhoiList();
-  else if(t==='taikhoan'){ renderCurAccountBox(); renderAccountList(); }
+  else if(t==='taikhoan'){ switchTKSub(activeTKSub); }
 }
 function switchSubBT(s){
   activeSubBT = s;
@@ -504,6 +603,7 @@ let notifList = [];
 let khoLanhList = [];
 let nhietDoList = [];
 let dieuPhoiList = [];
+let activityLogList = [];
 
 function afterFirebaseReady(){
   attachUserListener();
@@ -541,6 +641,10 @@ function attachListeners(){
   db.collection('cd_dieuphoi').orderBy('createdAt','desc').onSnapshot(snap=>{
     dieuPhoiList = snap.docs.map(d=>({id:d.id, ...d.data()}));
     if(activeTab==='dieuphoi') renderDieuPhoiList();
+  });
+  db.collection('cd_activitylog').orderBy('createdAt','desc').limit(300).onSnapshot(snap=>{
+    activityLogList = snap.docs.map(d=>({id:d.id, ...d.data()}));
+    if(activeTab==='taikhoan' && activeTKSub==='lichsu') renderActivityLog();
   });
   renderBaoTriView();
 }
@@ -581,6 +685,7 @@ async function addKhoVatTu(){
   const donVi = document.getElementById('kho_dvtMoi').value.trim();
   if(!ten){ showToast("Nhập tên vật tư"); return; }
   await db.collection('cd_khovattu').add({ten, donVi});
+  logHoatDong("Thêm vật tư vào danh mục kho", ten);
   document.getElementById('kho_tenMoi').value='';
   document.getElementById('kho_dvtMoi').value='';
   showToast("Đã thêm vào kho");
@@ -589,6 +694,10 @@ async function addKhoVatTu(){
 /* ============================================================
    NHIỆT ĐỘ KHO
    ============================================================ */
+function khoRange(k){
+  const a = Number(k.nhietDoMin), b = Number(k.nhietDoMax);
+  return { lo: Math.min(a,b), hi: Math.max(a,b) };
+}
 function latestNhietDoFor(khoId){
   return nhietDoList.find(n=>n.khoId===khoId) || null;
 }
@@ -602,7 +711,8 @@ function renderNhietDoView(){
     const latest = latestNhietDoFor(k.id);
     let statusHtml = '<span class="muted small">Chưa có lần đo nào</span>';
     if(latest){
-      const outOfRange = latest.nhietDo < k.nhietDoMin || latest.nhietDo > k.nhietDoMax;
+      const kr = khoRange(k);
+      const outOfRange = latest.nhietDo > kr.hi; // càng lạnh (dưới mức tối thiểu) vẫn tính Đạt, chỉ cảnh báo khi ấm hơn mức cho phép
       statusHtml = `
         <span style="font-weight:800;font-size:22px;color:${outOfRange?'var(--danger)':'var(--ok)'};">${latest.nhietDo}°C</span>
         <span class="small" style="margin-left:6px;color:${outOfRange?'var(--danger)':'var(--ok)'};">${outOfRange?'⚠ Ngoài mức chuẩn':'✓ Đạt'}</span>
@@ -610,14 +720,14 @@ function renderNhietDoView(){
     }
     return `
     <div class="card" onclick="openNhietDoHistory('${k.id}')" style="cursor:pointer;">
-      <div class="row"><h3>${k.tenKho}</h3><span class="muted small">Chuẩn: ${k.nhietDoMin}°C ~ ${k.nhietDoMax}°C</span></div>
+      <div class="row"><h3>${k.tenKho}</h3><span class="muted small">Chuẩn: ${khoRange(k).lo}°C ~ ${khoRange(k).hi}°C</span></div>
       <div style="margin-top:6px;">${statusHtml}</div>
       ${latest && latest.hinhAnh && latest.hinhAnh.length? `<div class="muted small" style="margin-top:6px;">📷 ${latest.hinhAnh.length} ảnh</div>`:''}
     </div>`;
   }).join('');
 }
 function openNhietDoForm(){
-  const khoOptions = khoLanhList.map(k=>`<option value="${k.id}">${k.tenKho} (${k.nhietDoMin}°C~${k.nhietDoMax}°C)</option>`).join('');
+  const khoOptions = khoLanhList.map(k=>`<option value="${k.id}">${k.tenKho} (${khoRange(k).lo}°C~${khoRange(k).hi}°C)</option>`).join('');
   pendingPhotosNhietDo = [];
   const html = `
     <div class="modal-overlay" onclick="if(event.target===this) closeModal()">
@@ -636,6 +746,7 @@ function openNhietDoForm(){
             <div style="flex:1;"><label>Nhiệt độ tối thiểu (°C)</label><input id="nd_min" type="number"></div>
             <div style="flex:1;"><label>Nhiệt độ tối đa (°C)</label><input id="nd_max" type="number"></div>
           </div>
+          <div class="muted small" style="margin-top:4px;">💡 Với nhiệt độ âm, nhập số nào vào ô nào cũng được — app tự nhận diện số nhỏ/lớn.</div>
         </div>
         <label>Nhiệt độ đo được (°C)</label>
         <input id="nd_nhietDo" type="number" step="0.1" placeholder="VD: -18.5">
@@ -722,9 +833,11 @@ async function submitNhietDo(){
       createdAt: firebase.firestore.FieldValue.serverTimestamp()
     });
     const k2 = khoLanhList.find(x=>x.id===khoId);
-    if(k2 && (nhietDo < k2.nhietDoMin || nhietDo > k2.nhietDoMax)){
+    const k2r = k2 ? khoRange(k2) : null;
+    if(k2 && (nhietDo > k2r.hi)){
       showToast("⚠ Đã lưu — nhiệt độ đang NGOÀI mức chuẩn!");
     } else {
+      logHoatDong("Đo nhiệt độ kho", tenKho+": "+nhietDo+"°C");
       showToast("Đã lưu kết quả đo");
     }
     closeModal();
@@ -738,11 +851,18 @@ function openNhietDoHistory(khoId){
     <div class="modal-overlay" onclick="if(event.target===this) closeModal()">
       <div class="modal">
         <div class="modal-title">${k.tenKho}<span class="x" onclick="closeModal()">&times;</span></div>
-        <div class="muted small">Mức chuẩn: ${k.nhietDoMin}°C ~ ${k.nhietDoMax}°C</div>
+        <div class="row">
+          <div class="muted small">Mức chuẩn: ${khoRange(k).lo}°C ~ ${khoRange(k).hi}°C</div>
+          <div class="row" style="gap:12px;">
+            <span onclick="openEditKhoLanh('${k.id}')" style="cursor:pointer;">✏️</span>
+            <span onclick="deleteKhoLanh('${k.id}')" style="cursor:pointer;color:var(--danger);">🗑</span>
+          </div>
+        </div>
         <label style="margin-top:14px;">Lịch sử đo</label>
         <div class="timeline">
           ${logs.length===0? '<div class="empty small">Chưa có lần đo nào.</div>' : logs.map(n=>{
-            const outOfRange = n.nhietDo < k.nhietDoMin || n.nhietDo > k.nhietDoMax;
+            const kr2 = khoRange(k);
+            const outOfRange = n.nhietDo > kr2.hi;
             return `
             <div class="timeline-item">
               <div class="t" style="color:${outOfRange?'var(--danger)':'var(--ok)'};">${n.nhietDo}°C ${outOfRange?'⚠':'✓'}</div>
@@ -755,6 +875,40 @@ function openNhietDoHistory(khoId){
       </div>
     </div>`;
   document.getElementById('modalRoot').innerHTML = html;
+}
+function openEditKhoLanh(khoId){
+  const k = khoLanhList.find(x=>x.id===khoId);
+  if(!k) return;
+  const html = `
+    <div class="modal-overlay" onclick="if(event.target===this) closeModal()">
+      <div class="modal">
+        <div class="modal-title">Sửa kho lạnh<span class="x" onclick="closeModal()">&times;</span></div>
+        <label>Tên kho</label>
+        <input id="ek_ten" value="${k.tenKho}">
+        <div class="row" style="gap:8px;">
+          <div style="flex:1;"><label>Nhiệt độ tối thiểu (°C)</label><input id="ek_min" type="number" value="${k.nhietDoMin}"></div>
+          <div style="flex:1;"><label>Nhiệt độ tối đa (°C)</label><input id="ek_max" type="number" value="${k.nhietDoMax}"></div>
+        </div>
+        <button class="btn btn-primary" onclick="saveEditKhoLanh('${k.id}')">✓ Lưu</button>
+      </div>
+    </div>`;
+  document.getElementById('modalRoot').innerHTML = html;
+}
+async function saveEditKhoLanh(khoId){
+  const tenKho = document.getElementById('ek_ten').value.trim();
+  const nhietDoMin = Number(document.getElementById('ek_min').value);
+  const nhietDoMax = Number(document.getElementById('ek_max').value);
+  if(!tenKho){ showToast("Nhập tên kho"); return; }
+  await db.collection('cd_kholanh').doc(khoId).update({tenKho, nhietDoMin, nhietDoMax});
+  logHoatDong("Sửa kho lạnh", tenKho);
+  showToast("Đã cập nhật kho lạnh"); closeModal();
+}
+async function deleteKhoLanh(khoId){
+  if(!confirm("Xoá kho lạnh này? Lịch sử đo trước đó vẫn giữ nguyên nhưng sẽ không còn gắn với kho nào.")) return;
+  const k = khoLanhList.find(x=>x.id===khoId);
+  await db.collection('cd_kholanh').doc(khoId).delete();
+  logHoatDong("Xoá kho lạnh", k?k.tenKho:khoId);
+  showToast("Đã xoá kho lạnh"); closeModal();
 }
 
 
@@ -804,6 +958,16 @@ async function logThongBao(tieuDe, noiDung, loai, lienKetId, taiKhoanNhan){
   try{
     await db.collection('cd_thongbao').add({
       tieuDe, noiDung, loai, lienKetId, taiKhoanNhan: taiKhoanNhan||[], daDoc:{},
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+  }catch(e){ console.error(e); }
+}
+async function logHoatDong(hanhDong, chiTiet){
+  try{
+    await db.collection('cd_activitylog').add({
+      username: currentUser?currentUser.username:'',
+      displayName: currentUser?currentUser.displayName:'(chưa đăng nhập)',
+      hanhDong, chiTiet: chiTiet||'',
       createdAt: firebase.firestore.FieldValue.serverTimestamp()
     });
   }catch(e){ console.error(e); }
@@ -938,14 +1102,16 @@ async function saveThietBi(id){
   };
   if(lanGanNhat){ data.lanBaoTriGanNhat = lanGanNhat; data.lanBaoTriTiepTheo = lanTiepTheo; }
   try{
-    if(id){ await db.collection('cd_thietbi').doc(id).update(data); showToast("Đã cập nhật thiết bị"); }
-    else{ data.createdAt = firebase.firestore.FieldValue.serverTimestamp(); await db.collection('cd_thietbi').add(data); showToast("Đã thêm thiết bị mới"); }
+    if(id){ await db.collection('cd_thietbi').doc(id).update(data); logHoatDong("Sửa thiết bị", tenMay); showToast("Đã cập nhật thiết bị"); }
+    else{ data.createdAt = firebase.firestore.FieldValue.serverTimestamp(); await db.collection('cd_thietbi').add(data); logHoatDong("Thêm thiết bị mới", tenMay); showToast("Đã thêm thiết bị mới"); }
     closeModal();
   }catch(e){ console.error(e); showToast("Lỗi khi lưu: "+e.message); }
 }
 async function deleteThietBi(id){
   if(!confirm("Xoá thiết bị này? Không thể hoàn tác.")) return;
+  const tb = thietBiList.find(t=>t.id===id);
   await db.collection('cd_thietbi').doc(id).delete();
+  logHoatDong("Xoá thiết bị", tb?tb.tenMay:id);
   showToast("Đã xoá thiết bị"); closeModal();
 }
 
@@ -1064,6 +1230,7 @@ async function submitBaoTri(thietBiId){
     await db.collection('cd_thietbi').doc(thietBiId).update({
       lanBaoTriGanNhat: ngay, lanBaoTriTiepTheo: tiepTheo
     });
+    logHoatDong("Hoàn tất bảo trì", tb.tenMay);
     showToast("Đã ghi nhận bảo trì cho "+tb.tenMay);
     closeModal();
   }catch(e){ console.error(e); showToast("Lỗi: "+e.message); }
@@ -1085,6 +1252,8 @@ function renderSuaChuaList(){
   const el = document.getElementById('view-sc-list');
   let list = phieuList;
   if(activeSCFilter!=='all') list = list.filter(p=>p.trangThai===activeSCFilter);
+  const q = (document.getElementById('scSearchInput')?.value||'').trim().toLowerCase();
+  if(q) list = list.filter(p=> (p.tenMay||'').toLowerCase().includes(q) || (p.maPhieu||'').toLowerCase().includes(q));
   if(list.length===0){ el.innerHTML = '<div class="empty">Không có phiếu sửa chữa nào.</div>'; return; }
   el.innerHTML = list.map(p=>{
     const st = STATUS_LABEL[p.trangThai]||STATUS_LABEL.moi_tao;
@@ -1223,6 +1392,7 @@ async function submitPhieu(){
       createdAt: firebase.firestore.FieldValue.serverTimestamp()
     });
     await logThongBao("Phiếu sửa chữa mới: "+maPhieu, tenMay+" — "+moTa.slice(0,60), 'phieu_moi', docRef.id, usersWithQuyen('duyet'));
+    logHoatDong("Tạo phiếu sửa chữa", maPhieu+" — "+tenMay);
     showToast("Đã tạo phiếu "+maPhieu);
     closeModal();
   }catch(e){ console.error(e); showToast("Lỗi khi gửi phiếu: "+e.message); btn.disabled=false; btn.textContent='Gửi phiếu sửa chữa'; }
@@ -1393,6 +1563,7 @@ async function duyetPhieu(id){
     trangThai:'da_duyet', nguoiDuyet: currentUser.displayName, ngayDuyet: new Date(), lichSu
   });
   await logThongBao("Phiếu "+p.maPhieu+" đã được duyệt", "Chờ cấp vật tư", 'phieu_duyet', id, usersWithQuyen('capVT'));
+  logHoatDong("Duyệt phiếu", p.maPhieu);
   showToast("Đã duyệt phiếu"); closeModal();
 }
 async function tuChoiPhieu(id){
@@ -1400,6 +1571,7 @@ async function tuChoiPhieu(id){
   const ghiChu = document.getElementById('d_ghiChuDuyet').value.trim();
   const lichSu = await addLichSu(id, 'Từ chối phiếu' + (ghiChu? ': '+ghiChu : ''));
   await db.collection('cd_phieusuachua').doc(id).update({ trangThai:'tu_choi', lyDoTuChoi:ghiChu, lichSu });
+  logHoatDong("Từ chối phiếu", p.maPhieu);
   showToast("Đã từ chối phiếu"); closeModal();
 }
 async function doiVatTu(id){
@@ -1409,6 +1581,7 @@ async function doiVatTu(id){
   await db.collection('cd_phieusuachua').doc(id).update({
     trangThai:'cho_vat_tu', nguoiDuyet: currentUser.displayName, ngayDuyet: new Date(), lichSu
   });
+  logHoatDong("Chuyển sang đợi vật tư", p.maPhieu);
   showToast("Đã chuyển sang trạng thái đợi vật tư"); closeModal();
 }
 let pendingPhotosVatTu = [];
@@ -1462,6 +1635,7 @@ async function xacNhanCoVatTu(id){
     });
     const targets = tagged ? [tagged.username] : usersWithQuyen('sua');
     await logThongBao("Phiếu "+p.maPhieu+" đã có vật tư", tagged? tagged.displayName+" ơi, vào nhận việc nhé" : "Sẵn sàng sửa chữa", 'phieu_vattu', id, targets);
+    logHoatDong("Xác nhận có vật tư", p.maPhieu);
     showToast("Đã xác nhận có vật tư"); closeModal();
   }catch(e){ console.error(e); showToast("Lỗi: "+e.message); }
 }
@@ -1471,6 +1645,7 @@ async function nhanViecSua(id){
   await db.collection('cd_phieusuachua').doc(id).update({
     trangThai:'dang_sua', nguoiSuaChua: currentUser.displayName, ngayBatDauSua: new Date(), lichSu
   });
+  logHoatDong("Nhận việc sửa chữa", p.maPhieu);
   showToast("Bạn đã nhận việc này"); closeModal();
 }
 async function hoanThanhPhieu(id){
@@ -1487,6 +1662,7 @@ async function hoanThanhPhieu(id){
       hinhAnhHoanThanh, ngayHoanThanh: new Date(), lichSu
     });
     await logThongBao("Phiếu "+p.maPhieu+" đã hoàn thành", p.tenMay+" đã sửa xong", 'phieu_xong', id, usersWithQuyen('duyet'));
+    logHoatDong("Hoàn thành sửa chữa", p.maPhieu);
     showToast("Đã hoàn thành phiếu sửa chữa"); closeModal();
   }catch(e){ console.error(e); showToast("Lỗi: "+e.message); btn.disabled=false; }
 }
@@ -1568,6 +1744,7 @@ async function submitDieuPhoi(){
       createdAt: firebase.firestore.FieldValue.serverTimestamp()
     });
     await logThongBao("Bạn có việc mới được giao", noiDung.slice(0,80), 'dieuphoi_moi', docRef.id, nguoiNhan);
+    logHoatDong("Giao việc điều phối", noiDung.slice(0,60));
     showToast("Đã giao việc"); closeModal();
   }catch(e){ console.error(e); showToast("Lỗi: "+e.message); }
 }
@@ -1576,6 +1753,7 @@ async function danhDauXongDP(id){
   if(!v) return;
   const daXong = [...new Set([...(v.daXong||[]), currentUser.username])];
   await db.collection('cd_dieuphoi').doc(id).update({daXong});
+  logHoatDong("Đánh dấu xong việc điều phối", (v.noiDung||'').slice(0,60));
   showToast("Đã đánh dấu xong");
   if(v.nguoiGiaoUsername && v.nguoiGiaoUsername!==currentUser.username){
     const nguoiNhan = v.nguoiNhan||[];
