@@ -106,29 +106,66 @@
     border-radius:50%;animation:spin .7s linear infinite;}
   @keyframes spin{to{transform:rotate(360deg)}}
 
-  .login-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;}
-  .login-card{background:#fff;border-radius:16px;padding:28px 22px;width:100%;max-width:360px;box-shadow:0 4px 20px rgba(0,0,0,.08);}
-  .login-card h2{margin:0 0 6px;font-size:18px;text-align:center;}
-  .login-card p{text-align:center;color:var(--muted);font-size:12.5px;margin:0 0 20px;}
+  .login-screen{min-height:100vh;display:flex;flex-direction:column;padding:0;background:linear-gradient(180deg,#dbeafe 0%,#eef4ff 55%,#ffffff 100%);}
+  .login-hero{padding:56px 20px 34px;text-align:center;position:relative;overflow:hidden;}
+  .login-hero .gear-deco{position:absolute;font-size:34px;opacity:.35;color:var(--primary);}
+  .login-hero .gear-deco.g1{top:14px;left:10%;font-size:30px;}
+  .login-hero .gear-deco.g2{top:8px;right:12%;font-size:26px;}
+  .login-hero .gear-deco.g3{bottom:10px;left:18%;font-size:24px;}
+  .login-hero .gear-deco.g4{bottom:4px;right:16%;font-size:22px;}
+  .login-hero-icon{width:104px;height:104px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;
+    margin:0 auto;box-shadow:0 10px 34px rgba(22,93,216,.28);font-size:50px;position:relative;z-index:2;}
+  .login-card{background:#fff;border-radius:26px 26px 0 0;padding:30px 22px 32px;width:100%;max-width:480px;margin:0 auto;
+    box-shadow:0 -12px 40px rgba(20,40,90,.10);flex:1;position:relative;z-index:2;}
+  .login-card h2{margin:0 0 6px;font-size:19px;text-align:center;display:flex;align-items:center;justify-content:center;gap:8px;}
+  .login-card p{text-align:center;color:var(--muted);font-size:12.5px;margin:0 0 22px;}
+  .input-icon-wrap{position:relative;}
+  .input-icon-wrap svg{position:absolute;left:14px;top:50%;transform:translateY(-50%);width:19px;height:19px;stroke:#9aa5b8;pointer-events:none;}
+  .input-icon-wrap input{padding-left:42px !important;}
+  .btn-login{width:100%;padding:15px;border-radius:14px;border:none;background:linear-gradient(135deg,var(--primary),var(--primary-dark));
+    color:#fff;font-size:15px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;margin-top:16px;}
 </style>
 </head>
 <body>
 
 <div id="loginScreen" class="login-screen" style="display:none;">
+  <div class="login-hero">
+    <span class="gear-deco g1">⚙️</span>
+    <span class="gear-deco g2">⚙️</span>
+    <span class="gear-deco g3">🔩</span>
+    <span class="gear-deco g4">⚙️</span>
+    <div class="login-hero-icon">🛠️</div>
+  </div>
   <div class="login-card">
     <h2>⚙️ Quản Lý Kỹ Thuật Cơ Điện</h2>
     <p id="loginSubtitle">Đăng nhập bằng tài khoản được cấp để tiếp tục</p>
     <label>Tên đăng nhập</label>
-    <input id="loginUsername" placeholder="Tên đăng nhập">
+    <div class="input-icon-wrap">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      <input id="loginUsername" placeholder="Tên đăng nhập" onkeydown="if(event.key==='Enter'){document.getElementById('loginPassword').focus();}">
+    </div>
     <label>Mật khẩu</label>
-    <input id="loginPassword" type="text" placeholder="Mật khẩu">
-    <button class="btn btn-primary" onclick="doLogin()">Đăng nhập</button>
-    <div id="loginError" class="small" style="color:var(--danger);margin-top:8px;"></div>
+    <div class="input-icon-wrap">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      <input id="loginPassword" type="password" placeholder="Mật khẩu" onkeydown="if(event.key==='Enter'){doLogin();}">
+    </div>
+    <button class="btn-login" onclick="doLogin()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+      Đăng nhập
+    </button>
+    <div id="loginError" class="small" style="color:var(--danger);margin-top:8px;text-align:center;"></div>
   </div>
 </div>
 
 <div id="bootstrapScreen" class="login-screen" style="display:none;">
-  <div class="login-card" style="max-width:420px;">
+  <div class="login-hero">
+    <span class="gear-deco g1">⚙️</span>
+    <span class="gear-deco g2">⚙️</span>
+    <span class="gear-deco g3">🔩</span>
+    <span class="gear-deco g4">⚙️</span>
+    <div class="login-hero-icon">🛠️</div>
+  </div>
+  <div class="login-card" style="max-width:480px;">
     <h2>⚙️ Tạo tài khoản đầu tiên</h2>
     <p>Chưa có tài khoản nào — tạo tài khoản Quản lý đầu tiên để bắt đầu sử dụng.</p>
     <label>Tên hiển thị</label>
@@ -136,8 +173,8 @@
     <label>Tên đăng nhập</label>
     <input id="bs_username" placeholder="Tên đăng nhập">
     <label>Mật khẩu</label>
-    <input id="bs_password" type="text" placeholder="Mật khẩu">
-    <button class="btn btn-primary" onclick="doBootstrapAccount()">Tạo tài khoản & Vào ứng dụng</button>
+    <input id="bs_password" type="password" placeholder="Mật khẩu">
+    <button class="btn-login" onclick="doBootstrapAccount()">Tạo tài khoản & Vào ứng dụng</button>
   </div>
 </div>
 
@@ -145,7 +182,7 @@
   <div class="app-header">
     <div>
       <h1>⚙️ Kỹ Thuật Cơ Điện</h1>
-      <div class="ver">Phiên bản: V1.4.1</div>
+      <div class="ver">Phiên bản: V1.4.2</div>
     </div>
     <div class="row" style="gap:8px;">
       <div class="role-chip" id="roleChip" onclick="doLogout()">—</div>
