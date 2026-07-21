@@ -34,6 +34,7 @@
   .role-chip{font-size:11px;background:rgba(255,255,255,.18);padding:4px 9px;border-radius:20px;cursor:pointer;white-space:nowrap;}
 
   .tabbar{display:flex;background:#fff;border-bottom:1px solid var(--border);position:sticky;top:60px;z-index:40;}
+  .hidden{display:none !important;}
   .tabbar button{flex:1;padding:12px 4px;background:none;border:none;font-size:13px;font-weight:600;color:var(--muted);
     border-bottom:3px solid transparent;cursor:pointer;}
   .tabbar button.active{color:var(--primary);border-color:var(--primary);}
@@ -182,7 +183,7 @@
   <div class="app-header">
     <div>
       <h1>⚙️ Kỹ Thuật Cơ Điện</h1>
-      <div class="ver">Phiên bản: V1.4.2</div>
+      <div class="ver">Phiên bản: V1.4.4</div>
     </div>
     <div class="row" style="gap:8px;">
       <div class="role-chip" id="roleChip" onclick="doLogout()">—</div>
@@ -241,6 +242,11 @@
         <div class="checklist-item"><input type="checkbox" id="tk_q_sua" checked><span>Sửa chữa (nhận việc, hoàn thành)</span></div>
         <div class="checklist-item"><input type="checkbox" id="tk_q_tao" checked><span>Tạo phiếu / báo sự cố</span></div>
         <div class="checklist-item"><input type="checkbox" id="tk_q_dieuPhoi"><span>Điều phối công việc</span></div>
+        <label style="margin-top:14px;">Cho phép xem các tab</label>
+        <div class="checklist-item"><input type="checkbox" id="tk_q_xemBaoTri" checked><span>🔧 Bảo trì kỹ thuật</span></div>
+        <div class="checklist-item"><input type="checkbox" id="tk_q_xemSuaChua" checked><span>🛠️ Sửa chữa</span></div>
+        <div class="checklist-item"><input type="checkbox" id="tk_q_xemDieuPhoi"><span>📋 Điều phối</span></div>
+        <div class="checklist-item"><input type="checkbox" id="tk_q_xemTaiKhoan" checked><span>👤 Tài khoản</span></div>
         <button class="btn btn-primary" onclick="addAccount()">➕ Thêm tài khoản</button>
       </div>
       <div id="accountListBox"></div>
@@ -377,6 +383,7 @@ function checkLoginGate(){
       document.getElementById('loginScreen').style.display='none';
       document.getElementById('mainApp').style.display='block';
       renderUserChip();
+      applyTabVisibility();
       return;
     }
   }
@@ -390,7 +397,7 @@ async function doBootstrapAccount(){
   const username = document.getElementById('bs_username').value.trim();
   const password = document.getElementById('bs_password').value;
   if(!displayName || !username || !password){ showToast("Vui lòng nhập đủ thông tin"); return; }
-  const quyen = {duyet:true, capVT:true, sua:true, tao:true, dieuPhoi:true};
+  const quyen = {duyet:true, capVT:true, sua:true, tao:true, dieuPhoi:true, xemBaoTri:true, xemSuaChua:true, xemDieuPhoi:true, xemTaiKhoan:true};
   await db.collection('cd_users').add({username, password, displayName, quyen});
   currentUser = {username, displayName, quyen};
   localStorage.setItem(CUR_USER_KEY, JSON.stringify({username}));
@@ -408,6 +415,7 @@ function doLogin(){
   localStorage.setItem(CUR_USER_KEY, JSON.stringify({username:acc.username}));
   logHoatDong("Đăng nhập", "");
   renderUserChip();
+  applyTabVisibility();
   document.getElementById('loginScreen').style.display='none';
   document.getElementById('mainApp').style.display='block';
 }
@@ -443,6 +451,10 @@ async function addAccount(){
     sua: document.getElementById('tk_q_sua').checked,
     tao: document.getElementById('tk_q_tao').checked,
     dieuPhoi: document.getElementById('tk_q_dieuPhoi').checked,
+    xemBaoTri: document.getElementById('tk_q_xemBaoTri').checked,
+    xemSuaChua: document.getElementById('tk_q_xemSuaChua').checked,
+    xemDieuPhoi: document.getElementById('tk_q_xemDieuPhoi').checked,
+    xemTaiKhoan: document.getElementById('tk_q_xemTaiKhoan').checked,
   };
   await db.collection('cd_users').add({username, password, displayName, quyen});
   logHoatDong("Tạo tài khoản mới", displayName+" ("+username+")");
@@ -464,6 +476,10 @@ async function saveEditAccount(id){
     sua: document.getElementById('ea_q_sua-'+id).checked,
     tao: document.getElementById('ea_q_tao-'+id).checked,
     dieuPhoi: document.getElementById('ea_q_dieuPhoi-'+id).checked,
+    xemBaoTri: document.getElementById('ea_q_xemBaoTri-'+id).checked,
+    xemSuaChua: document.getElementById('ea_q_xemSuaChua-'+id).checked,
+    xemDieuPhoi: document.getElementById('ea_q_xemDieuPhoi-'+id).checked,
+    xemTaiKhoan: document.getElementById('ea_q_xemTaiKhoan-'+id).checked,
   };
   await db.collection('cd_users').doc(id).update({displayName, username, password, quyen});
   logHoatDong("Sửa tài khoản", displayName+" ("+username+")");
@@ -490,6 +506,15 @@ function quyenLabel(q){
   if(q.tao) l.push('Tạo phiếu');
   if(q.dieuPhoi) l.push('Điều phối');
   return l.join(', ')||'Không có quyền';
+}
+function tabViewLabel(q){
+  q = q||{};
+  const l = [];
+  if(q.xemBaoTri!==false) l.push('Bảo trì');
+  if(q.xemSuaChua!==false) l.push('Sửa chữa');
+  if(q.xemDieuPhoi) l.push('Điều phối');
+  if(q.xemTaiKhoan!==false) l.push('Tài khoản');
+  return l.join(', ')||'Không xem được tab nào';
 }
 function switchTKSub(s){
   activeTKSub = s;
@@ -566,6 +591,11 @@ function renderAccountList(){
           <div class="checklist-item"><input type="checkbox" id="ea_q_sua-${u.id}" ${q.sua?'checked':''}><span>Sửa chữa</span></div>
           <div class="checklist-item"><input type="checkbox" id="ea_q_tao-${u.id}" ${q.tao?'checked':''}><span>Tạo phiếu</span></div>
           <div class="checklist-item"><input type="checkbox" id="ea_q_dieuPhoi-${u.id}" ${q.dieuPhoi?'checked':''}><span>Điều phối công việc</span></div>
+          <label style="margin-top:14px;">Cho phép xem các tab</label>
+          <div class="checklist-item"><input type="checkbox" id="ea_q_xemBaoTri-${u.id}" ${q.xemBaoTri!==false?'checked':''}><span>🔧 Bảo trì kỹ thuật</span></div>
+          <div class="checklist-item"><input type="checkbox" id="ea_q_xemSuaChua-${u.id}" ${q.xemSuaChua!==false?'checked':''}><span>🛠️ Sửa chữa</span></div>
+          <div class="checklist-item"><input type="checkbox" id="ea_q_xemDieuPhoi-${u.id}" ${q.xemDieuPhoi?'checked':''}><span>📋 Điều phối</span></div>
+          <div class="checklist-item"><input type="checkbox" id="ea_q_xemTaiKhoan-${u.id}" ${q.xemTaiKhoan!==false?'checked':''}><span>👤 Tài khoản</span></div>
           <div class="btn-row">
             <button class="btn btn-ok" onclick="saveEditAccount('${u.id}')">✓ Lưu</button>
             <button class="btn btn-outline" onclick="cancelEditAccount()">Huỷ</button>
@@ -582,6 +612,7 @@ function renderAccountList(){
           </div>
         </div>
         <div class="small muted" style="margin-top:4px;">Quyền: ${quyenLabel(q)}</div>
+        <div class="small muted" style="margin-top:2px;">Tab xem được: ${tabViewLabel(q)}</div>
       </div>`;
   }).join('');
 }
@@ -594,6 +625,24 @@ let activeTKSub = 'tk';
 let activeSubBT = 'lich';
 let activeSCFilter = 'all';
 
+function applyTabVisibility(){
+  if(!currentUser) return;
+  const q = currentUser.quyen||{};
+  const perms = {
+    baotri: q.xemBaoTri!==false,
+    suachua: q.xemSuaChua!==false,
+    dieuphoi: !!q.xemDieuPhoi,
+    taikhoan: q.xemTaiKhoan!==false,
+  };
+  document.getElementById('tabBtn-baotri').classList.toggle('hidden', !perms.baotri);
+  document.getElementById('tabBtn-suachua').classList.toggle('hidden', !perms.suachua);
+  document.getElementById('tabBtn-dieuphoi').classList.toggle('hidden', !perms.dieuphoi);
+  document.getElementById('tabBtn-taikhoan').classList.toggle('hidden', !perms.taikhoan);
+  if(!perms[activeTab]){
+    const firstAllowed = ['baotri','suachua','dieuphoi','taikhoan'].find(k=>perms[k]);
+    switchTab(firstAllowed || 'baotri');
+  }
+}
 function switchTab(t){
   activeTab = t;
   document.getElementById('tab-baotri').style.display = t==='baotri' ? 'block':'none';
@@ -1072,14 +1121,40 @@ function renderLichSuBaoTri(){
   const el = document.getElementById('view-bt-lichsu');
   if(baoTriList.length===0){ el.innerHTML = '<div class="empty">Chưa có lịch sử bảo trì nào.</div>'; return; }
   el.innerHTML = baoTriList.map(b=>`
-    <div class="card">
+    <div class="card" onclick="openBaoTriDetail('${b.id}')" style="cursor:pointer;">
       <div class="row"><h3>${b.tenMay}</h3><span class="muted small">${fmtDate(b.ngayThucHien)}</span></div>
       <div class="muted small">Người thực hiện: ${b.nguoiThucHien||'—'}</div>
       ${b.ghiChu? `<div class="small" style="margin-top:6px;">📝 ${b.ghiChu}</div>` : ''}
       <div class="muted small" style="margin-top:6px;">✓ ${(b.checklist||[]).filter(c=>c.daLam).length}/${(b.checklist||[]).length} mục hoàn thành</div>
-      ${b.hinhAnh&&b.hinhAnh.length? `<div class="photo-grid" style="margin-top:8px;">${b.hinhAnh.map(u=>`<img class="photo-thumb" src="${u}" onclick="previewImage('${u}')">`).join('')}</div>`:''}
+      ${b.hinhAnh&&b.hinhAnh.length? `<div class="photo-grid" style="margin-top:8px;">${b.hinhAnh.map(u=>`<img class="photo-thumb" src="${u}" onclick="event.stopPropagation();previewImage('${u}')">`).join('')}</div>`:''}
     </div>
   `).join('');
+}
+function openBaoTriDetail(id){
+  const b = baoTriList.find(x=>x.id===id);
+  if(!b) return;
+  const q = currentUser?(currentUser.quyen||{}):{};
+  const html = `
+    <div class="modal-overlay" onclick="if(event.target===this) closeModal()">
+      <div class="modal">
+        <div class="modal-title"><span>${b.tenMay}</span>${q.duyet? `<span onclick="deleteBaoTri('${b.id}')" style="cursor:pointer;font-size:14px;color:var(--danger);font-weight:600;margin-right:10px;">🗑 Xoá</span>`:''}<span class="x" onclick="closeModal()">&times;</span></div>
+        <div class="muted small">Ngày thực hiện: ${fmtDate(b.ngayThucHien)}</div>
+        <div class="muted small">Người thực hiện: ${b.nguoiThucHien||'—'}</div>
+        ${b.ghiChu? `<div class="small" style="margin-top:8px;"><b>Ghi chú:</b> ${b.ghiChu}</div>`:''}
+        <label style="margin-top:14px;">Checklist</label>
+        ${(b.checklist||[]).map(c=>`<div class="checklist-item"><span>${c.daLam?'✅':'⬜️'}</span><span>${c.muc}</span></div>`).join('')}
+        ${b.hinhAnh&&b.hinhAnh.length? `<label style="margin-top:14px;">Ảnh hoàn thành</label><div class="photo-grid">${b.hinhAnh.map(u=>`<img class="photo-thumb" src="${u}" onclick="previewImage('${u}')">`).join('')}</div>`:''}
+      </div>
+    </div>`;
+  document.getElementById('modalRoot').innerHTML = html;
+}
+async function deleteBaoTri(id){
+  const b = baoTriList.find(x=>x.id===id);
+  if(!b) return;
+  if(!confirm(`Xoá lần bảo trì "${b.tenMay}" ngày ${fmtDate(b.ngayThucHien)}? Không thể hoàn tác.`)) return;
+  await db.collection('cd_baotri').doc(id).delete();
+  logHoatDong("Xoá lịch sử bảo trì", b.tenMay+" — "+fmtDate(b.ngayThucHien));
+  showToast("Đã xoá"); closeModal();
 }
 
 // ---- Form: Thêm/Sửa thiết bị ----
@@ -1738,6 +1813,7 @@ function renderDieuPhoiList(){
     const tenNguoiNhan = nguoiNhan.map(un=>{ const u = userList.find(x=>x.username===un); return u?u.displayName:un; });
     const daNhanViec = currentUser && nguoiNhan.includes(currentUser.username);
     const toiDaXong = currentUser && daXong.includes(currentUser.username);
+    const coTheXoa = currentUser && (v.nguoiGiaoUsername===currentUser.username || (currentUser.quyen&&currentUser.quyen.dieuPhoi));
     return `
     <div class="card">
       <div class="row">
@@ -1749,6 +1825,7 @@ function renderDieuPhoiList(){
       <div class="small" style="margin-top:6px;">👥 ${tenNguoiNhan.join(', ')||'—'}</div>
       ${daNhanViec && !toiDaXong? `<button class="btn btn-ok" style="margin-top:10px;" onclick="danhDauXongDP('${v.id}')">✓ Tôi đã xong</button>`:''}
       ${daNhanViec && toiDaXong? `<div class="small" style="margin-top:8px;color:var(--ok);">✓ Bạn đã đánh dấu xong việc này</div>`:''}
+      ${coTheXoa? `<button class="btn btn-outline" style="margin-top:10px;color:var(--danger);border-color:var(--danger);" onclick="deleteDieuPhoi('${v.id}')">🗑 Xoá việc này</button>`:''}
     </div>`;
   }).join('');
 }
@@ -1807,6 +1884,14 @@ async function danhDauXongDP(id){
       await logThongBao("Việc đã hoàn thành", (v.noiDung||'').slice(0,80)+" — tất cả đã xong", 'dieuphoi_xong', id, [v.nguoiGiaoUsername]);
     }
   }
+}
+async function deleteDieuPhoi(id){
+  const v = dieuPhoiList.find(x=>x.id===id);
+  if(!v) return;
+  if(!confirm(`Xoá việc điều phối "${v.noiDung}"? Không thể hoàn tác.`)) return;
+  await db.collection('cd_dieuphoi').doc(id).delete();
+  logHoatDong("Xoá việc điều phối", (v.noiDung||'').slice(0,60));
+  showToast("Đã xoá việc điều phối");
 }
 
 function renderNotifBadge(){
