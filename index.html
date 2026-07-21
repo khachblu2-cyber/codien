@@ -1,0 +1,947 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Quản Lý Kỹ Thuật Cơ Điện</title>
+<link rel="manifest" href="data:application/json;base64,eyJuYW1lIjoiUXVhbiBMeSBDbyBEaWVuIiwic2hvcnRfbmFtZSI6IkNvIERpZW4iLCJzdGFydF91cmwiOiIuIiwiZGlzcGxheSI6InN0YW5kYWxvbmUiLCJiYWNrZ3JvdW5kX2NvbG9yIjoiI2ZmZmZmZiIsInRoZW1lX2NvbG9yIjoiIzE2NWRkOCJ9">
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js" defer></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js" defer></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-storage-compat.js" defer></script>
+<style>
+  :root{
+    --primary:#165dd8; --primary-dark:#0e3f9c; --bg:#f2f4f7; --card:#ffffff;
+    --text:#1c2430; --muted:#6b7688; --border:#e3e7ee;
+    --danger:#e5484d; --warn:#f5a623; --ok:#1aa260;
+    --status-new:#8a94a6; --status-approved:#3b82f6; --status-supply:#f5a623;
+    --status-repair:#8b5cf6; --status-done:#1aa260;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  body{margin:0;background:var(--bg);color:var(--text);padding-bottom:70px;}
+  .app-header{
+    position:sticky;top:0;z-index:50;background:linear-gradient(135deg,var(--primary),var(--primary-dark));
+    color:#fff;padding:14px 16px 12px;display:flex;align-items:center;justify-content:space-between;
+    box-shadow:0 2px 8px rgba(0,0,0,.15);
+  }
+  .app-header h1{font-size:16px;margin:0;font-weight:700;}
+  .app-header .ver{font-size:10px;opacity:.8;font-weight:400;margin-top:2px;}
+  .bell{position:relative;width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,.15);
+    display:flex;align-items:center;justify-content:center;cursor:pointer;border:none;}
+  .bell svg{width:19px;height:19px;fill:#fff;}
+  .bell .badge{position:absolute;top:-2px;right:-2px;background:var(--danger);color:#fff;font-size:10px;
+    min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 3px;font-weight:700;}
+  .role-chip{font-size:11px;background:rgba(255,255,255,.18);padding:4px 9px;border-radius:20px;cursor:pointer;white-space:nowrap;}
+
+  .tabbar{display:flex;background:#fff;border-bottom:1px solid var(--border);position:sticky;top:60px;z-index:40;}
+  .tabbar button{flex:1;padding:12px 4px;background:none;border:none;font-size:13px;font-weight:600;color:var(--muted);
+    border-bottom:3px solid transparent;cursor:pointer;}
+  .tabbar button.active{color:var(--primary);border-color:var(--primary);}
+
+  .subtabbar{display:flex;gap:6px;padding:10px 12px;overflow-x:auto;background:var(--bg);}
+  .subtabbar button{flex:0 0 auto;padding:7px 14px;border-radius:20px;border:1px solid var(--border);background:#fff;
+    font-size:12.5px;color:var(--muted);white-space:nowrap;cursor:pointer;}
+  .subtabbar button.active{background:var(--primary);color:#fff;border-color:var(--primary);}
+
+  .container{padding:12px;max-width:720px;margin:0 auto;}
+  .card{background:var(--card);border-radius:12px;padding:14px;margin-bottom:10px;box-shadow:0 1px 3px rgba(20,30,50,.06);border:1px solid var(--border);}
+  .card h3{margin:0 0 4px;font-size:15px;}
+  .row{display:flex;justify-content:space-between;align-items:center;gap:8px;}
+  .muted{color:var(--muted);font-size:12px;}
+  .small{font-size:11.5px;}
+
+  .fab{position:fixed;right:18px;bottom:22px;width:56px;height:56px;border-radius:50%;background:var(--primary);
+    color:#fff;border:none;font-size:28px;box-shadow:0 4px 14px rgba(22,93,216,.45);cursor:pointer;z-index:45;
+    display:flex;align-items:center;justify-content:center;}
+
+  .badge-status{display:inline-block;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700;color:#fff;}
+  .st-new{background:var(--status-new);} .st-approved{background:var(--status-approved);}
+  .st-supply{background:var(--status-supply);} .st-repair{background:var(--status-repair);}
+  .st-done{background:var(--status-done);} .st-rejected{background:var(--danger);}
+
+  .badge-priority{display:inline-block;padding:2px 8px;border-radius:6px;font-size:10.5px;font-weight:700;}
+  .pr-urgent{background:#fdeaea;color:var(--danger);} .pr-normal{background:#eef1f6;color:var(--muted);}
+
+  .due-ok{color:var(--ok);} .due-soon{color:var(--warn);font-weight:700;} .due-over{color:var(--danger);font-weight:700;}
+
+  /* Modal */
+  .modal-overlay{position:fixed;inset:0;background:rgba(15,20,30,.55);z-index:100;display:flex;align-items:flex-end;justify-content:center;}
+  .modal{background:#fff;width:100%;max-width:720px;max-height:92vh;overflow-y:auto;border-radius:16px 16px 0 0;padding:18px;animation:up .18s ease;}
+  @keyframes up{from{transform:translateY(30px);opacity:0}to{transform:translateY(0);opacity:1}}
+  .modal-title{font-size:16px;font-weight:700;margin:0 0 14px;display:flex;justify-content:space-between;align-items:center;}
+  .modal-title .x{cursor:pointer;color:var(--muted);font-size:22px;line-height:1;}
+
+  label{display:block;font-size:12.5px;color:var(--muted);margin:10px 0 4px;font-weight:600;}
+  input,select,textarea{width:100%;padding:10px 11px;border:1px solid var(--border);border-radius:9px;font-size:14px;background:#fbfcfe;}
+  textarea{resize:vertical;min-height:64px;}
+  .btn{padding:11px 16px;border-radius:10px;border:none;font-size:14px;font-weight:700;cursor:pointer;width:100%;margin-top:14px;}
+  .btn-primary{background:var(--primary);color:#fff;}
+  .btn-ok{background:var(--ok);color:#fff;}
+  .btn-danger{background:var(--danger);color:#fff;}
+  .btn-outline{background:#fff;color:var(--primary);border:1px solid var(--primary);}
+  .btn-row{display:flex;gap:8px;}
+  .btn-row .btn{margin-top:14px;}
+
+  .photo-grid{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
+  .photo-thumb{width:72px;height:72px;border-radius:8px;object-fit:cover;border:1px solid var(--border);cursor:pointer;}
+  .photo-add{width:72px;height:72px;border-radius:8px;border:2px dashed var(--border);display:flex;align-items:center;
+    justify-content:center;color:var(--muted);font-size:26px;cursor:pointer;}
+
+  .checklist-item{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);}
+  .checklist-item input[type=checkbox]{width:19px;height:19px;flex:0 0 auto;}
+  .checklist-item span{flex:1;font-size:13.5px;}
+  .checklist-item .del{color:var(--danger);font-size:18px;cursor:pointer;}
+
+  .timeline{border-left:2px solid var(--border);margin-left:6px;padding-left:14px;}
+  .timeline-item{position:relative;padding-bottom:14px;}
+  .timeline-item::before{content:"";position:absolute;left:-19px;top:3px;width:9px;height:9px;border-radius:50%;background:var(--primary);}
+  .timeline-item .t{font-size:12.5px;font-weight:700;}
+  .timeline-item .d{font-size:11px;color:var(--muted);}
+
+  .empty{text-align:center;padding:40px 16px;color:var(--muted);}
+  .toast{position:fixed;top:70px;left:50%;transform:translateX(-50%);background:#1c2430;color:#fff;padding:10px 18px;
+    border-radius:24px;font-size:13px;z-index:200;box-shadow:0 4px 14px rgba(0,0,0,.25);}
+
+  .spinner{display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;
+    border-radius:50%;animation:spin .7s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  .login-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;}
+  .login-card{background:#fff;border-radius:16px;padding:28px 22px;width:100%;max-width:360px;box-shadow:0 4px 20px rgba(0,0,0,.08);}
+  .login-card h2{margin:0 0 6px;font-size:18px;text-align:center;}
+  .login-card p{text-align:center;color:var(--muted);font-size:12.5px;margin:0 0 20px;}
+</style>
+</head>
+<body>
+
+<div id="loginScreen" class="login-screen" style="display:none;">
+  <div class="login-card">
+    <h2>⚙️ Quản Lý Kỹ Thuật Cơ Điện</h2>
+    <p>Chọn tên và vai trò của bạn để tiếp tục</p>
+    <label>Họ tên</label>
+    <input id="loginName" placeholder="VD: Nguyễn Văn A">
+    <label>Vai trò</label>
+    <select id="loginRole">
+      <option value="quanly">Quản lý / Giám đốc</option>
+      <option value="truongbophan">Trưởng bộ phận cơ điện</option>
+      <option value="tho">Thợ kỹ thuật</option>
+      <option value="vanhanh">Nhân viên vận hành xưởng</option>
+      <option value="thukho">Thủ kho vật tư</option>
+    </select>
+    <button class="btn btn-primary" onclick="doLogin()">Vào ứng dụng</button>
+  </div>
+</div>
+
+<div id="mainApp" style="display:none;">
+  <div class="app-header">
+    <div>
+      <h1>⚙️ Kỹ Thuật Cơ Điện</h1>
+      <div class="ver">Phiên bản: V1.0.3</div>
+    </div>
+    <div class="row" style="gap:8px;">
+      <div class="role-chip" id="roleChip" onclick="doLogout()">—</div>
+      <button class="bell" onclick="openNotifPanel()">
+        <svg viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+        <span class="badge" id="notifBadge" style="display:none;">0</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="tabbar">
+    <button id="tabBtn-baotri" class="active" onclick="switchTab('baotri')">🔧 Bảo trì kỹ thuật</button>
+    <button id="tabBtn-suachua" onclick="switchTab('suachua')">🛠️ Sửa chữa</button>
+  </div>
+
+  <!-- ============ TAB: BAO TRI ============ -->
+  <div id="tab-baotri">
+    <div class="subtabbar">
+      <button id="sub-bt-lich" class="active" onclick="switchSubBT('lich')">Lịch bảo trì</button>
+      <button id="sub-bt-thietbi" onclick="switchSubBT('thietbi')">Danh mục thiết bị</button>
+      <button id="sub-bt-lichsu" onclick="switchSubBT('lichsu')">Lịch sử</button>
+    </div>
+    <div class="container">
+      <div id="view-bt-lich"></div>
+      <div id="view-bt-thietbi" style="display:none;"></div>
+      <div id="view-bt-lichsu" style="display:none;"></div>
+    </div>
+  </div>
+
+  <!-- ============ TAB: SUA CHUA ============ -->
+  <div id="tab-suachua" style="display:none;">
+    <div class="subtabbar">
+      <button class="active sc-filter" data-f="all" onclick="filterSC('all')">Tất cả</button>
+      <button class="sc-filter" data-f="moi_tao" onclick="filterSC('moi_tao')">Mới tạo</button>
+      <button class="sc-filter" data-f="da_duyet" onclick="filterSC('da_duyet')">Đã duyệt</button>
+      <button class="sc-filter" data-f="dang_cap_vt" onclick="filterSC('dang_cap_vt')">Cấp vật tư</button>
+      <button class="sc-filter" data-f="dang_sua" onclick="filterSC('dang_sua')">Đang sửa</button>
+      <button class="sc-filter" data-f="hoan_thanh" onclick="filterSC('hoan_thanh')">Hoàn thành</button>
+    </div>
+    <div class="container">
+      <div id="view-sc-list"></div>
+    </div>
+  </div>
+
+  <button class="fab" id="fabBtn" onclick="onFabClick()">+</button>
+</div>
+
+<div id="modalRoot"></div>
+<div id="toastRoot"></div>
+
+<script>
+/* ============================================================
+   FIREBASE CONFIG
+   ⚠️ QUAN TRỌNG: Dán đúng firebaseConfig từ file So_thu_chi_tong.html
+   (tìm dòng "const firebaseConfig = {...}" trong file đó) vào đây
+   để app này dùng CHUNG project Firebase "so-thu-chi-9f0b5".
+   ============================================================ */
+const firebaseConfig = {
+  apiKey: "AIzaSyAL4TaYl8KiktkNkburY94jsxSjyyGh2xc",
+  authDomain: "so-thu-chi-9f0b5.firebaseapp.com",
+  projectId: "so-thu-chi-9f0b5",
+  storageBucket: "so-thu-chi-9f0b5.firebasestorage.app",
+  messagingSenderId: "900824130297",
+  appId: "1:900824130297:web:27cff5c2f775cf2bd93828"
+};
+
+let app, db, storage;
+let firebaseReady = false;
+
+function cloudInit(){
+  try{
+    app = firebase.initializeApp(firebaseConfig);
+    db = firebase.firestore();
+    storage = firebase.storage();
+    db.enablePersistence({synchronizeTabs:true}).catch(()=>{});
+    firebaseReady = true;
+    afterFirebaseReady();
+  }catch(e){
+    console.error("Firebase init lỗi:", e);
+    showToast("Lỗi kết nối Firebase — kiểm tra lại firebaseConfig");
+  }
+}
+window.addEventListener('load', cloudInit);
+
+/* ============================================================
+   STATE & AUTH-LITE (chọn vai trò, lưu localStorage, không dùng Firebase Auth)
+   ============================================================ */
+const ROLES = {
+  quanly:        {label:"Quản lý",        canDuyet:true,  canCapVT:true,  canSua:true,  canTao:true},
+  truongbophan:  {label:"Trưởng bộ phận", canDuyet:true,  canCapVT:true,  canSua:true,  canTao:true},
+  tho:           {label:"Thợ kỹ thuật",   canDuyet:false, canCapVT:false, canSua:true,  canTao:true},
+  vanhanh:       {label:"Vận hành xưởng", canDuyet:false, canCapVT:false, canSua:false, canTao:true},
+  thukho:        {label:"Thủ kho",        canDuyet:false, canCapVT:true,  canSua:false, canTao:false},
+};
+let currentUser = null; // {name, role}
+
+function loadUser(){
+  const raw = localStorage.getItem('cd_user');
+  if(raw){ currentUser = JSON.parse(raw); }
+}
+function doLogin(){
+  const name = document.getElementById('loginName').value.trim();
+  const role = document.getElementById('loginRole').value;
+  if(!name){ showToast("Vui lòng nhập họ tên"); return; }
+  currentUser = {name, role};
+  localStorage.setItem('cd_user', JSON.stringify(currentUser));
+  renderUserChip();
+  document.getElementById('loginScreen').style.display='none';
+  document.getElementById('mainApp').style.display='block';
+}
+function doLogout(){
+  if(!confirm("Đăng xuất và đổi người dùng?")) return;
+  localStorage.removeItem('cd_user');
+  location.reload();
+}
+function renderUserChip(){
+  document.getElementById('roleChip').textContent = currentUser.name + " · " + ROLES[currentUser.role].label;
+}
+
+/* ============================================================
+   TAB / SUBTAB SWITCHING
+   ============================================================ */
+let activeTab = 'baotri';
+let activeSubBT = 'lich';
+let activeSCFilter = 'all';
+
+function switchTab(t){
+  activeTab = t;
+  document.getElementById('tab-baotri').style.display = t==='baotri' ? 'block':'none';
+  document.getElementById('tab-suachua').style.display = t==='suachua' ? 'block':'none';
+  document.getElementById('tabBtn-baotri').classList.toggle('active', t==='baotri');
+  document.getElementById('tabBtn-suachua').classList.toggle('active', t==='suachua');
+  if(t==='baotri') renderBaoTriView(); else renderSuaChuaList();
+}
+function switchSubBT(s){
+  activeSubBT = s;
+  ['lich','thietbi','lichsu'].forEach(k=>{
+    document.getElementById('sub-bt-'+k).classList.toggle('active', k===s);
+    document.getElementById('view-bt-'+k).style.display = k===s ? 'block':'none';
+  });
+  renderBaoTriView();
+}
+function filterSC(f){
+  activeSCFilter = f;
+  document.querySelectorAll('.sc-filter').forEach(b=>b.classList.toggle('active', b.dataset.f===f));
+  renderSuaChuaList();
+}
+function onFabClick(){
+  if(activeTab==='baotri' && activeSubBT==='thietbi') openThietBiForm();
+  else if(activeTab==='suachua') openPhieuForm();
+  else showToast("Chuyển sang tab phù hợp để thêm mới");
+}
+
+/* ============================================================
+   REALTIME DATA
+   ============================================================ */
+let thietBiList = [];
+let baoTriList = [];
+let phieuList = [];
+let notifList = [];
+
+function afterFirebaseReady(){
+  loadUser();
+  if(currentUser){
+    renderUserChip();
+    document.getElementById('mainApp').style.display='block';
+  } else {
+    document.getElementById('loginScreen').style.display='flex';
+  }
+  attachListeners();
+}
+
+function attachListeners(){
+  db.collection('cd_thietbi').orderBy('tenMay').onSnapshot(snap=>{
+    thietBiList = snap.docs.map(d=>({id:d.id, ...d.data()}));
+    if(activeTab==='baotri') renderBaoTriView();
+  });
+  db.collection('cd_baotri').orderBy('ngayThucHien','desc').limit(100).onSnapshot(snap=>{
+    baoTriList = snap.docs.map(d=>({id:d.id, ...d.data()}));
+    if(activeTab==='baotri' && activeSubBT==='lichsu') renderBaoTriView();
+  });
+  db.collection('cd_phieusuachua').orderBy('createdAt','desc').onSnapshot(snap=>{
+    phieuList = snap.docs.map(d=>({id:d.id, ...d.data()}));
+    if(activeTab==='suachua') renderSuaChuaList();
+  });
+  db.collection('cd_thongbao').orderBy('createdAt','desc').limit(50).onSnapshot(snap=>{
+    notifList = snap.docs.map(d=>({id:d.id, ...d.data()}));
+    renderNotifBadge();
+  });
+  renderBaoTriView();
+}
+
+function genMaPhieu(){
+  const d = new Date();
+  return "SC" + d.getFullYear().toString().slice(2) + String(d.getMonth()+1).padStart(2,'0') + String(d.getDate()).padStart(2,'0') + "-" + Math.floor(Math.random()*900+100);
+}
+function fmtDate(ts){
+  if(!ts) return "—";
+  const d = ts.toDate ? ts.toDate() : new Date(ts);
+  return d.toLocaleDateString('vi-VN');
+}
+function fmtDateTime(ts){
+  if(!ts) return "—";
+  const d = ts.toDate ? ts.toDate() : new Date(ts);
+  return d.toLocaleDateString('vi-VN') + " " + d.toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'});
+}
+function daysBetween(a,b){ return Math.round((b-a)/(1000*60*60*24)); }
+
+function showToast(msg){
+  const el = document.createElement('div');
+  el.className='toast'; el.textContent = msg;
+  document.getElementById('toastRoot').appendChild(el);
+  setTimeout(()=>el.remove(), 2600);
+}
+async function logThongBao(tieuDe, noiDung, loai, lienKetId, vaiTroNhan){
+  try{
+    await db.collection('cd_thongbao').add({
+      tieuDe, noiDung, loai, lienKetId, vaiTroNhan: vaiTroNhan||[], daDoc:{},
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+  }catch(e){ console.error(e); }
+}
+
+/* ============================================================
+   MODULE 1: BẢO TRÌ KỸ THUẬT
+   ============================================================ */
+function renderBaoTriView(){
+  if(activeSubBT==='thietbi') renderThietBiList();
+  else if(activeSubBT==='lich') renderLichBaoTri();
+  else renderLichSuBaoTri();
+}
+
+function renderThietBiList(){
+  const el = document.getElementById('view-bt-thietbi');
+  if(thietBiList.length===0){
+    el.innerHTML = '<div class="empty">Chưa có thiết bị nào.<br>Nhấn nút + để thêm thiết bị mới.</div>';
+    return;
+  }
+  el.innerHTML = thietBiList.map(tb=>`
+    <div class="card" onclick="openThietBiForm('${tb.id}')" style="cursor:pointer;">
+      <div class="row">
+        <h3>${tb.tenMay}</h3>
+        <span class="muted small">${tb.maTB||''}</span>
+      </div>
+      <div class="muted small">📍 ${tb.xuong||'—'} ${tb.viTri? '· '+tb.viTri : ''}</div>
+      <div class="muted small">Chu kỳ bảo trì: mỗi ${tb.chuKyBaoTri||'—'} ngày · Tình trạng: ${tb.tinhTrang||'—'}</div>
+    </div>
+  `).join('');
+}
+
+function renderLichBaoTri(){
+  const el = document.getElementById('view-bt-lich');
+  if(thietBiList.length===0){
+    el.innerHTML = '<div class="empty">Chưa có thiết bị nào để lên lịch bảo trì.<br>Vào "Danh mục thiết bị" để thêm.</div>';
+    return;
+  }
+  const now = new Date();
+  const rows = thietBiList.map(tb=>{
+    let nextDate = tb.lanBaoTriTiepTheo ? (tb.lanBaoTriTiepTheo.toDate ? tb.lanBaoTriTiepTheo.toDate() : new Date(tb.lanBaoTriTiepTheo)) : null;
+    let statusHtml, diff = nextDate ? daysBetween(now, nextDate) : null;
+    if(!nextDate){ statusHtml = '<span class="muted small">Chưa có lịch</span>'; }
+    else if(diff < 0){ statusHtml = `<span class="due-over small">⚠ Quá hạn ${Math.abs(diff)} ngày</span>`; }
+    else if(diff <= 7){ statusHtml = `<span class="due-soon small">Còn ${diff} ngày</span>`; }
+    else{ statusHtml = `<span class="due-ok small">Còn ${diff} ngày</span>`; }
+    return {tb, nextDate, diff: diff===null? 999999 : diff, statusHtml};
+  }).sort((a,b)=>a.diff-b.diff);
+
+  el.innerHTML = rows.map(r=>`
+    <div class="card">
+      <div class="row">
+        <h3>${r.tb.tenMay}</h3>
+        ${r.statusHtml}
+      </div>
+      <div class="muted small">📍 ${r.tb.xuong||'—'} · Lần bảo trì gần nhất: ${fmtDate(r.tb.lanBaoTriGanNhat)}</div>
+      <div class="muted small">Ngày dự kiến tiếp theo: ${r.nextDate? fmtDate(r.tb.lanBaoTriTiepTheo) : '—'}</div>
+      <button class="btn btn-ok" onclick="openBaoTriChecklist('${r.tb.id}')">✓ Đánh dấu đã bảo trì</button>
+    </div>
+  `).join('');
+}
+
+function renderLichSuBaoTri(){
+  const el = document.getElementById('view-bt-lichsu');
+  if(baoTriList.length===0){ el.innerHTML = '<div class="empty">Chưa có lịch sử bảo trì nào.</div>'; return; }
+  el.innerHTML = baoTriList.map(b=>`
+    <div class="card">
+      <div class="row"><h3>${b.tenMay}</h3><span class="muted small">${fmtDate(b.ngayThucHien)}</span></div>
+      <div class="muted small">Người thực hiện: ${b.nguoiThucHien||'—'}</div>
+      ${b.ghiChu? `<div class="small" style="margin-top:6px;">📝 ${b.ghiChu}</div>` : ''}
+      <div class="muted small" style="margin-top:6px;">✓ ${(b.checklist||[]).filter(c=>c.daLam).length}/${(b.checklist||[]).length} mục hoàn thành</div>
+    </div>
+  `).join('');
+}
+
+// ---- Form: Thêm/Sửa thiết bị ----
+function openThietBiForm(id){
+  const tb = id ? thietBiList.find(t=>t.id===id) : null;
+  const html = `
+    <div class="modal-overlay" onclick="if(event.target===this) closeModal()">
+      <div class="modal">
+        <div class="modal-title">${tb?'Sửa thiết bị':'Thêm thiết bị mới'}<span class="x" onclick="closeModal()">&times;</span></div>
+        <label>Tên máy / thiết bị *</label>
+        <input id="f_tenMay" value="${tb?.tenMay||''}" placeholder="VD: Máy nén khí IQF số 1">
+        <label>Mã thiết bị</label>
+        <input id="f_maTB" value="${tb?.maTB||''}" placeholder="VD: MN-001">
+        <label>Xưởng / khu vực</label>
+        <input id="f_xuong" value="${tb?.xuong||''}" placeholder="VD: Xưởng Tấn Khởi I">
+        <label>Vị trí lắp đặt</label>
+        <input id="f_viTri" value="${tb?.viTri||''}">
+        <label>Nhà cung cấp</label>
+        <input id="f_nhaCungCap" value="${tb?.nhaCungCap||''}">
+        <label>Tình trạng hiện tại</label>
+        <select id="f_tinhTrang">
+          <option ${tb?.tinhTrang==='Hoạt động tốt'?'selected':''}>Hoạt động tốt</option>
+          <option ${tb?.tinhTrang==='Cần theo dõi'?'selected':''}>Cần theo dõi</option>
+          <option ${tb?.tinhTrang==='Đang hỏng'?'selected':''}>Đang hỏng</option>
+          <option ${tb?.tinhTrang==='Ngừng sử dụng'?'selected':''}>Ngừng sử dụng</option>
+        </select>
+        <label>Chu kỳ bảo trì (số ngày)</label>
+        <input id="f_chuKy" type="number" value="${tb?.chuKyBaoTri||30}">
+        <label>Ngày bảo trì gần nhất</label>
+        <input id="f_lanGanNhat" type="date" value="${tb?.lanBaoTriGanNhat? toInputDate(tb.lanBaoTriGanNhat):''}">
+        <div class="btn-row">
+          ${tb?`<button class="btn btn-danger" onclick="deleteThietBi('${tb.id}')">Xoá</button>`:''}
+          <button class="btn btn-primary" onclick="saveThietBi('${tb?.id||''}')">Lưu thiết bị</button>
+        </div>
+      </div>
+    </div>`;
+  document.getElementById('modalRoot').innerHTML = html;
+}
+function toInputDate(ts){ const d = ts.toDate? ts.toDate() : new Date(ts); return d.toISOString().slice(0,10); }
+
+async function saveThietBi(id){
+  const tenMay = document.getElementById('f_tenMay').value.trim();
+  if(!tenMay){ showToast("Vui lòng nhập tên máy"); return; }
+  const chuKy = parseInt(document.getElementById('f_chuKy').value)||30;
+  const lanGanNhatStr = document.getElementById('f_lanGanNhat').value;
+  const lanGanNhat = lanGanNhatStr ? new Date(lanGanNhatStr) : null;
+  const lanTiepTheo = lanGanNhat ? new Date(lanGanNhat.getTime()+chuKy*86400000) : null;
+
+  const data = {
+    tenMay,
+    maTB: document.getElementById('f_maTB').value.trim(),
+    xuong: document.getElementById('f_xuong').value.trim(),
+    viTri: document.getElementById('f_viTri').value.trim(),
+    nhaCungCap: document.getElementById('f_nhaCungCap').value.trim(),
+    tinhTrang: document.getElementById('f_tinhTrang').value,
+    chuKyBaoTri: chuKy,
+  };
+  if(lanGanNhat){ data.lanBaoTriGanNhat = lanGanNhat; data.lanBaoTriTiepTheo = lanTiepTheo; }
+  try{
+    if(id){ await db.collection('cd_thietbi').doc(id).update(data); showToast("Đã cập nhật thiết bị"); }
+    else{ data.createdAt = firebase.firestore.FieldValue.serverTimestamp(); await db.collection('cd_thietbi').add(data); showToast("Đã thêm thiết bị mới"); }
+    closeModal();
+  }catch(e){ console.error(e); showToast("Lỗi khi lưu: "+e.message); }
+}
+async function deleteThietBi(id){
+  if(!confirm("Xoá thiết bị này? Không thể hoàn tác.")) return;
+  await db.collection('cd_thietbi').doc(id).delete();
+  showToast("Đã xoá thiết bị"); closeModal();
+}
+
+// ---- Checklist bảo trì ----
+let currentChecklist = [
+  {muc:"Vệ sinh tổng thể", daLam:false},
+  {muc:"Tra dầu mỡ bôi trơn", daLam:false},
+  {muc:"Kiểm tra dây curoa / bulong", daLam:false},
+  {muc:"Đo dòng điện / áp suất vận hành", daLam:false},
+];
+function openBaoTriChecklist(thietBiId){
+  const tb = thietBiList.find(t=>t.id===thietBiId);
+  currentChecklist = [
+    {muc:"Vệ sinh tổng thể", daLam:false},
+    {muc:"Tra dầu mỡ bôi trơn", daLam:false},
+    {muc:"Kiểm tra dây curoa / bulong", daLam:false},
+    {muc:"Đo dòng điện / áp suất vận hành", daLam:false},
+  ];
+  renderChecklistModal(tb);
+}
+function renderChecklistModal(tb){
+  const html = `
+    <div class="modal-overlay" onclick="if(event.target===this) closeModal()">
+      <div class="modal">
+        <div class="modal-title">Xác nhận bảo trì<span class="x" onclick="closeModal()">&times;</span></div>
+        <div class="muted small">Thiết bị: <b>${tb.tenMay}</b> — ${tb.xuong||''}</div>
+        <label>Checklist công việc</label>
+        <div id="checklistBox"></div>
+        <div class="btn-row"><button class="btn btn-outline" onclick="addChecklistItem()">+ Thêm mục kiểm tra</button></div>
+        <label>Người thực hiện</label>
+        <input id="bt_nguoiThucHien" value="${currentUser?currentUser.name:''}">
+        <label>Ngày thực hiện</label>
+        <input id="bt_ngay" type="date" value="${new Date().toISOString().slice(0,10)}">
+        <label>Ghi chú</label>
+        <textarea id="bt_ghiChu" placeholder="Ghi chú thêm (nếu có)"></textarea>
+        <button class="btn btn-ok" onclick="submitBaoTri('${tb.id}')">✓ Hoàn tất bảo trì</button>
+      </div>
+    </div>`;
+  document.getElementById('modalRoot').innerHTML = html;
+  renderChecklistBox();
+}
+function renderChecklistBox(){
+  document.getElementById('checklistBox').innerHTML = currentChecklist.map((c,i)=>`
+    <div class="checklist-item">
+      <input type="checkbox" ${c.daLam?'checked':''} onchange="currentChecklist[${i}].daLam=this.checked">
+      <span>${c.muc}</span>
+      <span class="del" onclick="removeChecklistItem(${i})">&times;</span>
+    </div>
+  `).join('');
+}
+function addChecklistItem(){
+  const t = prompt("Nhập nội dung mục kiểm tra:");
+  if(t && t.trim()){ currentChecklist.push({muc:t.trim(), daLam:false}); renderChecklistBox(); }
+}
+function removeChecklistItem(i){ currentChecklist.splice(i,1); renderChecklistBox(); }
+
+async function submitBaoTri(thietBiId){
+  const tb = thietBiList.find(t=>t.id===thietBiId);
+  const ngay = new Date(document.getElementById('bt_ngay').value);
+  const chuKy = tb.chuKyBaoTri || 30;
+  const tiepTheo = new Date(ngay.getTime() + chuKy*86400000);
+  try{
+    await db.collection('cd_baotri').add({
+      thietBiId, tenMay: tb.tenMay,
+      ngayThucHien: ngay,
+      nguoiThucHien: document.getElementById('bt_nguoiThucHien').value.trim(),
+      checklist: currentChecklist,
+      ghiChu: document.getElementById('bt_ghiChu').value.trim(),
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    await db.collection('cd_thietbi').doc(thietBiId).update({
+      lanBaoTriGanNhat: ngay, lanBaoTriTiepTheo: tiepTheo
+    });
+    showToast("Đã ghi nhận bảo trì cho "+tb.tenMay);
+    closeModal();
+  }catch(e){ console.error(e); showToast("Lỗi: "+e.message); }
+}
+
+/* ============================================================
+   MODULE 2: SỬA CHỮA
+   ============================================================ */
+const STATUS_LABEL = {
+  moi_tao:{label:"Mới tạo", cls:"st-new"},
+  da_duyet:{label:"Đã duyệt", cls:"st-approved"},
+  dang_cap_vt:{label:"Đang cấp vật tư", cls:"st-supply"},
+  dang_sua:{label:"Đang sửa chữa", cls:"st-repair"},
+  hoan_thanh:{label:"Hoàn thành", cls:"st-done"},
+  tu_choi:{label:"Từ chối", cls:"st-rejected"},
+};
+function renderSuaChuaList(){
+  const el = document.getElementById('view-sc-list');
+  let list = phieuList;
+  if(activeSCFilter!=='all') list = list.filter(p=>p.trangThai===activeSCFilter);
+  if(list.length===0){ el.innerHTML = '<div class="empty">Không có phiếu sửa chữa nào.</div>'; return; }
+  el.innerHTML = list.map(p=>{
+    const st = STATUS_LABEL[p.trangThai]||STATUS_LABEL.moi_tao;
+    return `
+    <div class="card" onclick="openPhieuDetail('${p.id}')" style="cursor:pointer;">
+      <div class="row">
+        <h3>${p.tenMay}</h3>
+        <span class="badge-status ${st.cls}">${st.label}</span>
+      </div>
+      <div class="row" style="margin-top:4px;">
+        <span class="muted small">${p.maPhieu} · ${fmtDate(p.createdAt)}</span>
+        <span class="badge-priority ${p.mucDoUuTien==='Khẩn cấp'?'pr-urgent':'pr-normal'}">${p.mucDoUuTien||'Bình thường'}</span>
+      </div>
+      <div class="small" style="margin-top:6px;">${(p.moTaSuCo||'').slice(0,90)}${(p.moTaSuCo||'').length>90?'...':''}</div>
+      ${p.hinhAnhBaoCao&&p.hinhAnhBaoCao.length? `<div class="muted small" style="margin-top:6px;">📷 ${p.hinhAnhBaoCao.length} ảnh</div>`:''}
+    </div>`;
+  }).join('');
+}
+
+// ---- Form tạo phiếu ----
+let pendingPhotos = []; // {file, dataUrl}
+function openPhieuForm(){
+  pendingPhotos = [];
+  const equipOptions = thietBiList.map(t=>`<option value="${t.tenMay}">${t.tenMay}</option>`).join('');
+  const html = `
+    <div class="modal-overlay" onclick="if(event.target===this) closeModal()">
+      <div class="modal">
+        <div class="modal-title">Tạo phiếu sửa chữa<span class="x" onclick="closeModal()">&times;</span></div>
+        <label>Tên máy / thiết bị *</label>
+        <input id="p_tenMay" list="equipList" placeholder="Chọn hoặc nhập tên máy">
+        <datalist id="equipList">${equipOptions}</datalist>
+        <label>Mô tả sự cố *</label>
+        <textarea id="p_moTa" placeholder="Mô tả chi tiết sự cố, hiện tượng..."></textarea>
+        <label>Mức độ ưu tiên</label>
+        <select id="p_uuTien">
+          <option value="Bình thường">Bình thường</option>
+          <option value="Khẩn cấp">Khẩn cấp — ảnh hưởng sản xuất</option>
+        </select>
+        <label>Người báo cáo</label>
+        <input id="p_nguoiBaoCao" value="${currentUser?currentUser.name:''}">
+        <label>Hình ảnh sự cố (tối đa 5 ảnh)</label>
+        <div class="photo-grid" id="photoGrid"></div>
+        <input type="file" id="photoInput" accept="image/*" capture="environment" multiple style="display:none;" onchange="onPhotoSelect(event)">
+        <button class="btn btn-primary" onclick="submitPhieu()">Gửi phiếu sửa chữa</button>
+      </div>
+    </div>`;
+  document.getElementById('modalRoot').innerHTML = html;
+  renderPhotoGrid();
+}
+function renderPhotoGrid(){
+  const grid = document.getElementById('photoGrid');
+  let html = pendingPhotos.map((p,i)=>`
+    <div style="position:relative;">
+      <img class="photo-thumb" src="${p.dataUrl}" onclick="previewImage('${p.dataUrl}')">
+      <span class="del" style="position:absolute;top:-6px;right:-6px;background:#fff;border-radius:50%;width:20px;height:20px;
+        display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,.3);font-size:14px;cursor:pointer;"
+        onclick="pendingPhotos.splice(${i},1);renderPhotoGrid();">&times;</span>
+    </div>`).join('');
+  if(pendingPhotos.length<5){
+    html += `<div class="photo-add" onclick="document.getElementById('photoInput').click()">+</div>`;
+  }
+  grid.innerHTML = html;
+}
+function onPhotoSelect(e){
+  const files = Array.from(e.target.files).slice(0, 5-pendingPhotos.length);
+  files.forEach(f=>{
+    const reader = new FileReader();
+    reader.onload = ev=>{
+      // resize/compress via canvas to keep upload small
+      const img = new Image();
+      img.onload = ()=>{
+        const canvas = document.createElement('canvas');
+        const maxDim = 1280;
+        let w=img.width, h=img.height;
+        if(w>h && w>maxDim){ h=h*maxDim/w; w=maxDim; } else if(h>maxDim){ w=w*maxDim/h; h=maxDim; }
+        canvas.width=w; canvas.height=h;
+        canvas.getContext('2d').drawImage(img,0,0,w,h);
+        const dataUrl = canvas.toDataURL('image/jpeg',0.75);
+        pendingPhotos.push({file:f, dataUrl});
+        renderPhotoGrid();
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(f);
+  });
+  e.target.value = '';
+}
+function previewImage(src){
+  const html = `<div class="modal-overlay" onclick="closeModal2()">
+    <img src="${src}" style="max-width:94vw;max-height:90vh;border-radius:8px;">
+  </div>`;
+  const d = document.createElement('div');
+  d.id='imgPreview'; d.innerHTML = html;
+  document.body.appendChild(d);
+}
+function closeModal2(){ const el = document.getElementById('imgPreview'); if(el) el.remove(); }
+
+async function uploadPhotos(photos, path){
+  const urls = [];
+  for(const p of photos){
+    const blob = await (await fetch(p.dataUrl)).blob();
+    const ref = storage.ref().child(path + '/' + Date.now() + '_' + Math.random().toString(36).slice(2) + '.jpg');
+    await ref.put(blob);
+    urls.push(await ref.getDownloadURL());
+  }
+  return urls;
+}
+
+async function submitPhieu(){
+  const tenMay = document.getElementById('p_tenMay').value.trim();
+  const moTa = document.getElementById('p_moTa').value.trim();
+  if(!tenMay || !moTa){ showToast("Vui lòng nhập tên máy và mô tả sự cố"); return; }
+  const btn = event.target; btn.innerHTML = '<span class="spinner"></span> Đang gửi...'; btn.disabled=true;
+  try{
+    const maPhieu = genMaPhieu();
+    let hinhAnhBaoCao = [];
+    if(pendingPhotos.length){
+      hinhAnhBaoCao = await uploadPhotos(pendingPhotos, 'codien/suachua/'+maPhieu);
+    }
+    const docRef = await db.collection('cd_phieusuachua').add({
+      maPhieu, tenMay,
+      moTaSuCo: moTa,
+      mucDoUuTien: document.getElementById('p_uuTien').value,
+      nguoiBaoCao: document.getElementById('p_nguoiBaoCao').value.trim(),
+      trangThai: 'moi_tao',
+      hinhAnhBaoCao,
+      lichSu: [{hanhDong:'Tạo phiếu', nguoiThucHien: currentUser?currentUser.name:'', thoiGian: new Date()}],
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    await logThongBao("Phiếu sửa chữa mới: "+maPhieu, tenMay+" — "+moTa.slice(0,60), 'phieu_moi', docRef.id, ['quanly','truongbophan']);
+    showToast("Đã tạo phiếu "+maPhieu);
+    closeModal();
+  }catch(e){ console.error(e); showToast("Lỗi khi gửi phiếu: "+e.message); btn.disabled=false; btn.textContent='Gửi phiếu sửa chữa'; }
+}
+
+// ---- Chi tiết phiếu + workflow ----
+function openPhieuDetail(id){
+  const p = phieuList.find(x=>x.id===id);
+  if(!p) return;
+  const st = STATUS_LABEL[p.trangThai]||STATUS_LABEL.moi_tao;
+  const role = currentUser?ROLES[currentUser.role]:{};
+  let actionHtml = '';
+
+  if(p.trangThai==='moi_tao' && role.canDuyet){
+    actionHtml = `
+      <label>Ghi chú duyệt (nếu có)</label>
+      <textarea id="d_ghiChuDuyet" placeholder="Ghi chú khi duyệt/từ chối"></textarea>
+      <div class="btn-row">
+        <button class="btn btn-danger" onclick="tuChoiPhieu('${p.id}')">Từ chối</button>
+        <button class="btn btn-ok" onclick="duyetPhieu('${p.id}')">✓ Duyệt phiếu</button>
+      </div>`;
+  } else if(p.trangThai==='da_duyet' && role.canCapVT){
+    actionHtml = `
+      <label>Danh sách vật tư sử dụng</label>
+      <div id="vatTuBox"></div>
+      <button class="btn btn-outline" onclick="addVatTuRow()">+ Thêm vật tư</button>
+      <button class="btn btn-primary" onclick="capVatTu('${p.id}')">✓ Xác nhận đã cấp vật tư</button>`;
+  } else if(p.trangThai==='dang_cap_vt' && role.canSua){
+    actionHtml = `
+      <label>Người sửa chữa (thợ phụ trách)</label>
+      <input id="d_nguoiSua" value="${currentUser?currentUser.name:''}">
+      <button class="btn btn-primary" onclick="batDauSua('${p.id}')">▶ Bắt đầu sửa chữa</button>`;
+  } else if(p.trangThai==='dang_sua' && role.canSua){
+    actionHtml = `
+      <label>Chi phí sửa chữa (đồng)</label>
+      <input id="d_chiPhi" type="number" placeholder="0">
+      <label>Ghi chú nghiệm thu</label>
+      <textarea id="d_ghiChuHoanThanh" placeholder="Kết quả sửa chữa, tình trạng máy sau sửa..."></textarea>
+      <label>Ảnh sau khi hoàn thành (tối đa 5 ảnh)</label>
+      <div class="photo-grid" id="photoGridDone"></div>
+      <input type="file" id="photoInputDone" accept="image/*" capture="environment" multiple style="display:none;" onchange="onPhotoSelectDone(event)">
+      <button class="btn btn-ok" onclick="hoanThanhPhieu('${p.id}')">✓ Hoàn thành sửa chữa</button>`;
+  }
+
+  const html = `
+    <div class="modal-overlay" onclick="if(event.target===this) closeModal()">
+      <div class="modal">
+        <div class="modal-title">${p.maPhieu}<span class="x" onclick="closeModal()">&times;</span></div>
+        <div class="row"><h3 style="margin:0;">${p.tenMay}</h3><span class="badge-status ${st.cls}">${st.label}</span></div>
+        <div class="badge-priority ${p.mucDoUuTien==='Khẩn cấp'?'pr-urgent':'pr-normal'}" style="margin-top:6px;display:inline-block;">${p.mucDoUuTien||'Bình thường'}</div>
+        <div class="small" style="margin-top:10px;"><b>Mô tả sự cố:</b> ${p.moTaSuCo}</div>
+        <div class="muted small" style="margin-top:4px;">Người báo cáo: ${p.nguoiBaoCao||'—'} · ${fmtDateTime(p.createdAt)}</div>
+        ${p.hinhAnhBaoCao&&p.hinhAnhBaoCao.length? `
+          <label>Ảnh sự cố</label>
+          <div class="photo-grid">${p.hinhAnhBaoCao.map(u=>`<img class="photo-thumb" src="${u}" onclick="previewImage('${u}')">`).join('')}</div>
+        `:''}
+        ${p.vatTuSuDung&&p.vatTuSuDung.length? `
+          <label>Vật tư đã cấp</label>
+          <div class="small">${p.vatTuSuDung.map(v=>`• ${v.ten} — ${v.soLuong} ${v.donVi}`).join('<br>')}</div>
+        `:''}
+        ${p.hinhAnhHoanThanh&&p.hinhAnhHoanThanh.length? `
+          <label>Ảnh sau hoàn thành</label>
+          <div class="photo-grid">${p.hinhAnhHoanThanh.map(u=>`<img class="photo-thumb" src="${u}" onclick="previewImage('${u}')">`).join('')}</div>
+        `:''}
+        ${p.chiPhi? `<div class="small" style="margin-top:8px;"><b>Chi phí:</b> ${Number(p.chiPhi).toLocaleString('vi-VN')} đ</div>`:''}
+        ${p.ghiChuHoanThanh? `<div class="small" style="margin-top:4px;"><b>Ghi chú nghiệm thu:</b> ${p.ghiChuHoanThanh}</div>`:''}
+
+        <label style="margin-top:16px;">Lịch sử xử lý</label>
+        <div class="timeline">
+          ${(p.lichSu||[]).map(h=>`
+            <div class="timeline-item">
+              <div class="t">${h.hanhDong}</div>
+              <div class="d">${h.nguoiThucHien||''} · ${fmtDateTime(h.thoiGian instanceof Date? h.thoiGian : h.thoiGian)}</div>
+            </div>`).join('')}
+        </div>
+
+        ${actionHtml}
+      </div>
+    </div>`;
+  document.getElementById('modalRoot').innerHTML = html;
+  if(p.trangThai==='da_duyet' && role.canCapVT){ vatTuRows=[{ten:'',soLuong:'',donVi:''}]; renderVatTuBox(); }
+  if(p.trangThai==='dang_sua' && role.canSua){ pendingPhotosDone=[]; renderPhotoGridDone(); }
+}
+
+let vatTuRows = [];
+function addVatTuRow(){ vatTuRows.push({ten:'',soLuong:'',donVi:''}); renderVatTuBox(); }
+function renderVatTuBox(){
+  document.getElementById('vatTuBox').innerHTML = vatTuRows.map((v,i)=>`
+    <div style="display:flex;gap:6px;margin-bottom:6px;">
+      <input placeholder="Tên vật tư" value="${v.ten}" oninput="vatTuRows[${i}].ten=this.value" style="flex:2;">
+      <input placeholder="SL" type="number" value="${v.soLuong}" oninput="vatTuRows[${i}].soLuong=this.value" style="flex:1;">
+      <input placeholder="ĐVT" value="${v.donVi}" oninput="vatTuRows[${i}].donVi=this.value" style="flex:1;">
+    </div>`).join('');
+}
+
+let pendingPhotosDone = [];
+function renderPhotoGridDone(){
+  const grid = document.getElementById('photoGridDone');
+  if(!grid) return;
+  let html = pendingPhotosDone.map((p,i)=>`
+    <div style="position:relative;">
+      <img class="photo-thumb" src="${p.dataUrl}" onclick="previewImage('${p.dataUrl}')">
+      <span class="del" style="position:absolute;top:-6px;right:-6px;background:#fff;border-radius:50%;width:20px;height:20px;
+        display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,.3);font-size:14px;cursor:pointer;"
+        onclick="pendingPhotosDone.splice(${i},1);renderPhotoGridDone();">&times;</span>
+    </div>`).join('');
+  if(pendingPhotosDone.length<5){ html += `<div class="photo-add" onclick="document.getElementById('photoInputDone').click()">+</div>`; }
+  grid.innerHTML = html;
+}
+function onPhotoSelectDone(e){
+  const files = Array.from(e.target.files).slice(0, 5-pendingPhotosDone.length);
+  files.forEach(f=>{
+    const reader = new FileReader();
+    reader.onload = ev=>{
+      const img = new Image();
+      img.onload = ()=>{
+        const canvas = document.createElement('canvas');
+        const maxDim = 1280;
+        let w=img.width, h=img.height;
+        if(w>h && w>maxDim){ h=h*maxDim/w; w=maxDim; } else if(h>maxDim){ w=w*maxDim/h; h=maxDim; }
+        canvas.width=w; canvas.height=h;
+        canvas.getContext('2d').drawImage(img,0,0,w,h);
+        pendingPhotosDone.push({file:f, dataUrl: canvas.toDataURL('image/jpeg',0.75)});
+        renderPhotoGridDone();
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(f);
+  });
+  e.target.value='';
+}
+
+async function addLichSu(id, hanhDong){
+  const p = phieuList.find(x=>x.id===id);
+  const lichSu = [...(p.lichSu||[]), {hanhDong, nguoiThucHien: currentUser?currentUser.name:'', thoiGian: new Date()}];
+  return lichSu;
+}
+
+async function duyetPhieu(id){
+  const p = phieuList.find(x=>x.id===id);
+  const lichSu = await addLichSu(id, 'Đã duyệt phiếu');
+  await db.collection('cd_phieusuachua').doc(id).update({
+    trangThai:'da_duyet', nguoiDuyet: currentUser.name, ngayDuyet: new Date(), lichSu
+  });
+  await logThongBao("Phiếu "+p.maPhieu+" đã được duyệt", "Chờ cấp vật tư", 'phieu_duyet', id, ['thukho']);
+  showToast("Đã duyệt phiếu"); closeModal();
+}
+async function tuChoiPhieu(id){
+  const p = phieuList.find(x=>x.id===id);
+  const ghiChu = document.getElementById('d_ghiChuDuyet').value.trim();
+  const lichSu = await addLichSu(id, 'Từ chối phiếu' + (ghiChu? ': '+ghiChu : ''));
+  await db.collection('cd_phieusuachua').doc(id).update({ trangThai:'tu_choi', lyDoTuChoi:ghiChu, lichSu });
+  showToast("Đã từ chối phiếu"); closeModal();
+}
+async function capVatTu(id){
+  const p = phieuList.find(x=>x.id===id);
+  const list = vatTuRows.filter(v=>v.ten.trim());
+  const lichSu = await addLichSu(id, 'Đã cấp vật tư ('+list.length+' mục)');
+  await db.collection('cd_phieusuachua').doc(id).update({
+    trangThai:'dang_cap_vt', vatTuSuDung:list, nguoiCapVatTu: currentUser.name, ngayCapVatTu: new Date(), lichSu
+  });
+  await logThongBao("Phiếu "+p.maPhieu+" đã cấp vật tư", "Sẵn sàng sửa chữa", 'phieu_vattu', id, ['tho','truongbophan']);
+  showToast("Đã xác nhận cấp vật tư"); closeModal();
+}
+async function batDauSua(id){
+  const p = phieuList.find(x=>x.id===id);
+  const nguoiSua = document.getElementById('d_nguoiSua').value.trim();
+  const lichSu = await addLichSu(id, 'Bắt đầu sửa chữa — '+nguoiSua);
+  await db.collection('cd_phieusuachua').doc(id).update({
+    trangThai:'dang_sua', nguoiSuaChua: nguoiSua, ngayBatDauSua: new Date(), lichSu
+  });
+  showToast("Đã bắt đầu sửa chữa"); closeModal();
+}
+async function hoanThanhPhieu(id){
+  const p = phieuList.find(x=>x.id===id);
+  const btn = event.target; btn.innerHTML = '<span class="spinner"></span> Đang lưu...'; btn.disabled=true;
+  try{
+    let hinhAnhHoanThanh = [];
+    if(pendingPhotosDone.length){ hinhAnhHoanThanh = await uploadPhotos(pendingPhotosDone, 'codien/suachua/'+p.maPhieu+'/hoanthanh'); }
+    const lichSu = await addLichSu(id, 'Hoàn thành sửa chữa');
+    await db.collection('cd_phieusuachua').doc(id).update({
+      trangThai:'hoan_thanh',
+      chiPhi: Number(document.getElementById('d_chiPhi').value)||0,
+      ghiChuHoanThanh: document.getElementById('d_ghiChuHoanThanh').value.trim(),
+      hinhAnhHoanThanh, ngayHoanThanh: new Date(), lichSu
+    });
+    await logThongBao("Phiếu "+p.maPhieu+" đã hoàn thành", p.tenMay+" đã sửa xong", 'phieu_xong', id, ['quanly','vanhanh']);
+    showToast("Đã hoàn thành phiếu sửa chữa"); closeModal();
+  }catch(e){ console.error(e); showToast("Lỗi: "+e.message); btn.disabled=false; }
+}
+
+function closeModal(){ document.getElementById('modalRoot').innerHTML=''; }
+function renderNotifBadge(){
+  if(!currentUser) return;
+  const unread = notifList.filter(n=>{
+    const forMe = !n.vaiTroNhan || n.vaiTroNhan.length===0 || n.vaiTroNhan.includes(currentUser.role);
+    return forMe && !(n.daDoc && n.daDoc[currentUser.name]);
+  }).length;
+  const badge = document.getElementById('notifBadge');
+  if(unread>0){ badge.style.display='flex'; badge.textContent = unread>9?'9+':unread; }
+  else{ badge.style.display='none'; }
+}
+function openNotifPanel(){
+  const mine = notifList.filter(n=>!n.vaiTroNhan || n.vaiTroNhan.length===0 || n.vaiTroNhan.includes(currentUser.role));
+  const html = `
+    <div class="modal-overlay" onclick="if(event.target===this) closeModal()">
+      <div class="modal">
+        <div class="modal-title">Thông báo<span class="x" onclick="closeModal()">&times;</span></div>
+        ${mine.length===0? '<div class="empty">Chưa có thông báo nào.</div>' : mine.map(n=>`
+          <div class="card" onclick="openPhieuDetail('${n.lienKetId}')" style="cursor:pointer;">
+            <div class="row"><b class="small">${n.tieuDe}</b><span class="muted small">${fmtDateTime(n.createdAt)}</span></div>
+            <div class="small muted">${n.noiDung||''}</div>
+          </div>
+        `).join('')}
+      </div>
+    </div>`;
+  document.getElementById('modalRoot').innerHTML = html;
+  // đánh dấu đã đọc
+  mine.forEach(n=>{
+    if(!(n.daDoc && n.daDoc[currentUser.name])){
+      db.collection('cd_thongbao').doc(n.id).update({['daDoc.'+currentUser.name]: true}).catch(()=>{});
+    }
+  });
+}
+</script>
+</body>
+</html>
