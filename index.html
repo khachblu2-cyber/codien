@@ -6,6 +6,7 @@
 <title>Quản Lý Kỹ Thuật Cơ Điện</title>
 <link rel="manifest" href="data:application/json;base64,eyJuYW1lIjoiUXVhbiBMeSBDbyBEaWVuIiwic2hvcnRfbmFtZSI6IkNvIERpZW4iLCJzdGFydF91cmwiOiIuIiwiZGlzcGxheSI6InN0YW5kYWxvbmUiLCJiYWNrZ3JvdW5kX2NvbG9yIjoiI2ZmZmZmZiIsInRoZW1lX2NvbG9yIjoiIzE2NWRkOCJ9">
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js" defer></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js" defer></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js" defer></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-storage-compat.js" defer></script>
 <style>
@@ -136,7 +137,7 @@
   <div class="app-header">
     <div>
       <h1>⚙️ Kỹ Thuật Cơ Điện</h1>
-      <div class="ver">Phiên bản: V1.0.3</div>
+      <div class="ver">Phiên bản: V1.0.4</div>
     </div>
     <div class="row" style="gap:8px;">
       <div class="role-chip" id="roleChip" onclick="doLogout()">—</div>
@@ -206,9 +207,10 @@ const firebaseConfig = {
 let app, db, storage;
 let firebaseReady = false;
 
-function cloudInit(){
+async function cloudInit(){
   try{
     app = firebase.initializeApp(firebaseConfig);
+    await firebase.auth().signInAnonymously();
     db = firebase.firestore();
     storage = firebase.storage();
     db.enablePersistence({synchronizeTabs:true}).catch(()=>{});
