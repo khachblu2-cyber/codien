@@ -146,7 +146,7 @@
   <div class="app-header">
     <div>
       <h1>⚙️ Kỹ Thuật Cơ Điện</h1>
-      <div class="ver">Phiên bản: V1.1.0</div>
+      <div class="ver">Phiên bản: V1.2.0</div>
     </div>
     <div class="row" style="gap:8px;">
       <div class="role-chip" id="roleChip" onclick="doLogout()">—</div>
@@ -160,7 +160,20 @@
   <div class="tabbar">
     <button id="tabBtn-baotri" class="active" onclick="switchTab('baotri')">🔧 Bảo trì kỹ thuật</button>
     <button id="tabBtn-suachua" onclick="switchTab('suachua')">🛠️ Sửa chữa</button>
+    <button id="tabBtn-dieuphoi" onclick="switchTab('dieuphoi')">📋 Điều phối</button>
     <button id="tabBtn-taikhoan" onclick="switchTab('taikhoan')">👤 Tài khoản</button>
+  </div>
+
+  <!-- ============ TAB: ĐIỀU PHỐI ============ -->
+  <div id="tab-dieuphoi" style="display:none;">
+    <div class="subtabbar">
+      <button class="active dp-filter" data-f="all" onclick="filterDP('all')">Tất cả</button>
+      <button class="dp-filter" data-f="cuatoi" onclick="filterDP('cuatoi')">Giao cho tôi</button>
+      <button class="dp-filter" data-f="toigiao" onclick="filterDP('toigiao')">Tôi đã giao</button>
+    </div>
+    <div class="container">
+      <div id="view-dieuphoi-list"></div>
+    </div>
   </div>
 
   <!-- ============ TAB: TÀI KHOẢN ============ -->
@@ -184,6 +197,7 @@
         <div class="checklist-item"><input type="checkbox" id="tk_q_capVT"><span>Cấp vật tư</span></div>
         <div class="checklist-item"><input type="checkbox" id="tk_q_sua" checked><span>Sửa chữa (nhận việc, hoàn thành)</span></div>
         <div class="checklist-item"><input type="checkbox" id="tk_q_tao" checked><span>Tạo phiếu / báo sự cố</span></div>
+        <div class="checklist-item"><input type="checkbox" id="tk_q_dieuPhoi"><span>Điều phối công việc</span></div>
         <button class="btn btn-primary" onclick="addAccount()">➕ Thêm tài khoản</button>
       </div>
       <div id="accountListBox"></div>
@@ -195,11 +209,13 @@
     <div class="subtabbar">
       <button id="sub-bt-lich" class="active" onclick="switchSubBT('lich')">Lịch bảo trì</button>
       <button id="sub-bt-thietbi" onclick="switchSubBT('thietbi')">Danh mục thiết bị</button>
+      <button id="sub-bt-nhietdo" onclick="switchSubBT('nhietdo')">🌡️ Nhiệt độ kho</button>
       <button id="sub-bt-lichsu" onclick="switchSubBT('lichsu')">Lịch sử</button>
     </div>
     <div class="container">
       <div id="view-bt-lich"></div>
       <div id="view-bt-thietbi" style="display:none;"></div>
+      <div id="view-bt-nhietdo" style="display:none;"></div>
       <div id="view-bt-lichsu" style="display:none;"></div>
     </div>
   </div>
@@ -304,7 +320,7 @@ async function doBootstrapAccount(){
   const username = document.getElementById('bs_username').value.trim();
   const password = document.getElementById('bs_password').value;
   if(!displayName || !username || !password){ showToast("Vui lòng nhập đủ thông tin"); return; }
-  const quyen = {duyet:true, capVT:true, sua:true, tao:true};
+  const quyen = {duyet:true, capVT:true, sua:true, tao:true, dieuPhoi:true};
   await db.collection('cd_users').add({username, password, displayName, quyen});
   currentUser = {username, displayName, quyen};
   localStorage.setItem(CUR_USER_KEY, JSON.stringify({username}));
@@ -340,6 +356,7 @@ function renderCurAccountBox(){
   if(q.capVT) list.push('Cấp vật tư');
   if(q.sua) list.push('Sửa chữa');
   if(q.tao) list.push('Tạo phiếu');
+  if(q.dieuPhoi) list.push('Điều phối');
   el.innerHTML = `<b>${currentUser.displayName}</b> (${currentUser.username})<br>Quyền: ${list.join(', ')||'Không có quyền nào'}`;
 }
 async function addAccount(){
@@ -353,6 +370,7 @@ async function addAccount(){
     capVT: document.getElementById('tk_q_capVT').checked,
     sua: document.getElementById('tk_q_sua').checked,
     tao: document.getElementById('tk_q_tao').checked,
+    dieuPhoi: document.getElementById('tk_q_dieuPhoi').checked,
   };
   await db.collection('cd_users').add({username, password, displayName, quyen});
   ['tk_displayName','tk_username','tk_password'].forEach(id=>document.getElementById(id).value='');
@@ -372,6 +390,7 @@ async function saveEditAccount(id){
     capVT: document.getElementById('ea_q_capVT-'+id).checked,
     sua: document.getElementById('ea_q_sua-'+id).checked,
     tao: document.getElementById('ea_q_tao-'+id).checked,
+    dieuPhoi: document.getElementById('ea_q_dieuPhoi-'+id).checked,
   };
   await db.collection('cd_users').doc(id).update({displayName, username, password, quyen});
   editingAccId = null;
@@ -393,6 +412,7 @@ function quyenLabel(q){
   if(q.capVT) l.push('Cấp VT');
   if(q.sua) l.push('Sửa');
   if(q.tao) l.push('Tạo phiếu');
+  if(q.dieuPhoi) l.push('Điều phối');
   return l.join(', ')||'Không có quyền';
 }
 function renderAccountList(){
@@ -412,6 +432,7 @@ function renderAccountList(){
           <div class="checklist-item"><input type="checkbox" id="ea_q_capVT-${u.id}" ${q.capVT?'checked':''}><span>Cấp vật tư</span></div>
           <div class="checklist-item"><input type="checkbox" id="ea_q_sua-${u.id}" ${q.sua?'checked':''}><span>Sửa chữa</span></div>
           <div class="checklist-item"><input type="checkbox" id="ea_q_tao-${u.id}" ${q.tao?'checked':''}><span>Tạo phiếu</span></div>
+          <div class="checklist-item"><input type="checkbox" id="ea_q_dieuPhoi-${u.id}" ${q.dieuPhoi?'checked':''}><span>Điều phối công việc</span></div>
           <div class="btn-row">
             <button class="btn btn-ok" onclick="saveEditAccount('${u.id}')">✓ Lưu</button>
             <button class="btn btn-outline" onclick="cancelEditAccount()">Huỷ</button>
@@ -443,17 +464,20 @@ function switchTab(t){
   activeTab = t;
   document.getElementById('tab-baotri').style.display = t==='baotri' ? 'block':'none';
   document.getElementById('tab-suachua').style.display = t==='suachua' ? 'block':'none';
+  document.getElementById('tab-dieuphoi').style.display = t==='dieuphoi' ? 'block':'none';
   document.getElementById('tab-taikhoan').style.display = t==='taikhoan' ? 'block':'none';
   document.getElementById('tabBtn-baotri').classList.toggle('active', t==='baotri');
   document.getElementById('tabBtn-suachua').classList.toggle('active', t==='suachua');
+  document.getElementById('tabBtn-dieuphoi').classList.toggle('active', t==='dieuphoi');
   document.getElementById('tabBtn-taikhoan').classList.toggle('active', t==='taikhoan');
   if(t==='baotri') renderBaoTriView();
   else if(t==='suachua') renderSuaChuaList();
+  else if(t==='dieuphoi') renderDieuPhoiList();
   else if(t==='taikhoan'){ renderCurAccountBox(); renderAccountList(); }
 }
 function switchSubBT(s){
   activeSubBT = s;
-  ['lich','thietbi','lichsu'].forEach(k=>{
+  ['lich','thietbi','nhietdo','lichsu'].forEach(k=>{
     document.getElementById('sub-bt-'+k).classList.toggle('active', k===s);
     document.getElementById('view-bt-'+k).style.display = k===s ? 'block':'none';
   });
@@ -466,7 +490,9 @@ function filterSC(f){
 }
 function onFabClick(){
   if(activeTab==='baotri' && activeSubBT==='thietbi') openThietBiForm();
+  else if(activeTab==='baotri' && activeSubBT==='nhietdo') openNhietDoForm();
   else if(activeTab==='suachua') openPhieuForm();
+  else if(activeTab==='dieuphoi') openDieuPhoiForm();
   else showToast("Chuyển sang tab phù hợp để thêm mới");
 }
 
@@ -477,6 +503,9 @@ let thietBiList = [];
 let baoTriList = [];
 let phieuList = [];
 let notifList = [];
+let khoLanhList = [];
+let nhietDoList = [];
+let dieuPhoiList = [];
 
 function afterFirebaseReady(){
   attachUserListener();
@@ -502,6 +531,18 @@ function attachListeners(){
   });
   db.collection('cd_khovattu').orderBy('ten').onSnapshot(snap=>{
     khoVatTuList = snap.docs.map(d=>({id:d.id, ...d.data()}));
+  });
+  db.collection('cd_kholanh').orderBy('tenKho').onSnapshot(snap=>{
+    khoLanhList = snap.docs.map(d=>({id:d.id, ...d.data()}));
+    if(activeTab==='baotri' && activeSubBT==='nhietdo') renderNhietDoView();
+  });
+  db.collection('cd_nhietdo').orderBy('createdAt','desc').limit(200).onSnapshot(snap=>{
+    nhietDoList = snap.docs.map(d=>({id:d.id, ...d.data()}));
+    if(activeTab==='baotri' && activeSubBT==='nhietdo') renderNhietDoView();
+  });
+  db.collection('cd_dieuphoi').orderBy('createdAt','desc').onSnapshot(snap=>{
+    dieuPhoiList = snap.docs.map(d=>({id:d.id, ...d.data()}));
+    if(activeTab==='dieuphoi') renderDieuPhoiList();
   });
   renderBaoTriView();
 }
@@ -547,6 +588,178 @@ async function addKhoVatTu(){
   showToast("Đã thêm vào kho");
 }
 
+/* ============================================================
+   NHIỆT ĐỘ KHO
+   ============================================================ */
+function latestNhietDoFor(khoId){
+  return nhietDoList.find(n=>n.khoId===khoId) || null;
+}
+function renderNhietDoView(){
+  const el = document.getElementById('view-bt-nhietdo');
+  if(khoLanhList.length===0){
+    el.innerHTML = `<div class="empty">Chưa có kho lạnh nào trong danh mục.<br>Bấm nút + để thêm kho đầu tiên.</div>`;
+    return;
+  }
+  el.innerHTML = khoLanhList.map(k=>{
+    const latest = latestNhietDoFor(k.id);
+    let statusHtml = '<span class="muted small">Chưa có lần đo nào</span>';
+    if(latest){
+      const outOfRange = latest.nhietDo < k.nhietDoMin || latest.nhietDo > k.nhietDoMax;
+      statusHtml = `
+        <span style="font-weight:800;font-size:22px;color:${outOfRange?'var(--danger)':'var(--ok)'};">${latest.nhietDo}°C</span>
+        <span class="small" style="margin-left:6px;color:${outOfRange?'var(--danger)':'var(--ok)'};">${outOfRange?'⚠ Ngoài mức chuẩn':'✓ Đạt'}</span>
+        <div class="muted small" style="margin-top:2px;">${latest.nguoiDo||''} · ${fmtDateTime(latest.createdAt)}</div>`;
+    }
+    return `
+    <div class="card" onclick="openNhietDoHistory('${k.id}')" style="cursor:pointer;">
+      <div class="row"><h3>${k.tenKho}</h3><span class="muted small">Chuẩn: ${k.nhietDoMin}°C ~ ${k.nhietDoMax}°C</span></div>
+      <div style="margin-top:6px;">${statusHtml}</div>
+      ${latest && latest.hinhAnh && latest.hinhAnh.length? `<div class="muted small" style="margin-top:6px;">📷 ${latest.hinhAnh.length} ảnh</div>`:''}
+    </div>`;
+  }).join('');
+}
+function openNhietDoForm(){
+  const khoOptions = khoLanhList.map(k=>`<option value="${k.id}">${k.tenKho} (${k.nhietDoMin}°C~${k.nhietDoMax}°C)</option>`).join('');
+  pendingPhotosNhietDo = [];
+  const html = `
+    <div class="modal-overlay" onclick="if(event.target===this) closeModal()">
+      <div class="modal">
+        <div class="modal-title">🌡️ Đo nhiệt độ kho<span class="x" onclick="closeModal()">&times;</span></div>
+        <label>Chọn kho</label>
+        <select id="nd_khoId" onchange="toggleNewKhoFields()">
+          <option value="">-- Chọn kho có sẵn --</option>
+          ${khoOptions}
+          <option value="__new__">+ Thêm kho lạnh mới</option>
+        </select>
+        <div id="nd_newKhoBox" style="display:none;">
+          <label>Tên kho mới</label>
+          <input id="nd_tenKhoMoi" placeholder="VD: Kho lạnh xưởng 1">
+          <div class="row" style="gap:8px;">
+            <div style="flex:1;"><label>Nhiệt độ tối thiểu (°C)</label><input id="nd_min" type="number"></div>
+            <div style="flex:1;"><label>Nhiệt độ tối đa (°C)</label><input id="nd_max" type="number"></div>
+          </div>
+        </div>
+        <label>Nhiệt độ đo được (°C)</label>
+        <input id="nd_nhietDo" type="number" step="0.1" placeholder="VD: -18.5">
+        <label>Người đo</label>
+        <input id="nd_nguoiDo" value="${currentUser?currentUser.displayName:''}">
+        <label>Ảnh đồng hồ đo (không bắt buộc, tối đa 3 ảnh)</label>
+        <div class="photo-grid" id="photoGridNhietDo"></div>
+        <input type="file" id="photoInputNhietDo" accept="image/*" capture="environment" multiple style="display:none;" onchange="onPhotoSelectNhietDo(event)">
+        <label>Ghi chú</label>
+        <textarea id="nd_ghiChu" placeholder="Ghi chú thêm (nếu có)"></textarea>
+        <button class="btn btn-primary" onclick="submitNhietDo()">✓ Lưu kết quả đo</button>
+      </div>
+    </div>`;
+  document.getElementById('modalRoot').innerHTML = html;
+  renderPhotoGridNhietDo();
+}
+function toggleNewKhoFields(){
+  const v = document.getElementById('nd_khoId').value;
+  document.getElementById('nd_newKhoBox').style.display = v==='__new__' ? 'block' : 'none';
+}
+let pendingPhotosNhietDo = [];
+function renderPhotoGridNhietDo(){
+  const grid = document.getElementById('photoGridNhietDo');
+  if(!grid) return;
+  let html = pendingPhotosNhietDo.map((p,i)=>`
+    <div style="position:relative;">
+      <img class="photo-thumb" src="${p.dataUrl}" onclick="previewImage('${p.dataUrl}')">
+      <span class="del" style="position:absolute;top:-6px;right:-6px;background:#fff;border-radius:50%;width:20px;height:20px;
+        display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,.3);font-size:14px;cursor:pointer;"
+        onclick="pendingPhotosNhietDo.splice(${i},1);renderPhotoGridNhietDo();">&times;</span>
+    </div>`).join('');
+  if(pendingPhotosNhietDo.length<3){ html += `<div class="photo-add" onclick="document.getElementById('photoInputNhietDo').click()">+</div>`; }
+  grid.innerHTML = html;
+}
+function onPhotoSelectNhietDo(e){
+  const files = Array.from(e.target.files).slice(0, 3-pendingPhotosNhietDo.length);
+  files.forEach(f=>{
+    const reader = new FileReader();
+    reader.onload = ev=>{
+      const img = new Image();
+      img.onload = ()=>{
+        const canvas = document.createElement('canvas');
+        const maxDim = 1280;
+        let w=img.width, h=img.height;
+        if(w>h && w>maxDim){ h=h*maxDim/w; w=maxDim; } else if(h>maxDim){ w=w*maxDim/h; h=maxDim; }
+        canvas.width=w; canvas.height=h;
+        canvas.getContext('2d').drawImage(img,0,0,w,h);
+        pendingPhotosNhietDo.push({file:f, dataUrl: canvas.toDataURL('image/jpeg',0.75)});
+        renderPhotoGridNhietDo();
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(f);
+  });
+  e.target.value='';
+}
+async function submitNhietDo(){
+  let khoId = document.getElementById('nd_khoId').value;
+  const nhietDo = Number(document.getElementById('nd_nhietDo').value);
+  const nguoiDo = document.getElementById('nd_nguoiDo').value.trim();
+  if(!khoId){ showToast("Chọn kho hoặc thêm kho mới"); return; }
+  if(isNaN(nhietDo) || document.getElementById('nd_nhietDo').value===''){ showToast("Nhập nhiệt độ đo được"); return; }
+  const btn = event.target; btn.innerHTML = '<span class="spinner"></span> Đang lưu...'; btn.disabled=true;
+  try{
+    let tenKho;
+    if(khoId==='__new__'){
+      const tenKhoMoi = document.getElementById('nd_tenKhoMoi').value.trim();
+      const min = Number(document.getElementById('nd_min').value);
+      const max = Number(document.getElementById('nd_max').value);
+      if(!tenKhoMoi){ showToast("Nhập tên kho mới"); btn.disabled=false; return; }
+      const ref = await db.collection('cd_kholanh').add({tenKho:tenKhoMoi, nhietDoMin:min, nhietDoMax:max});
+      khoId = ref.id;
+      tenKho = tenKhoMoi;
+    } else {
+      const k = khoLanhList.find(x=>x.id===khoId);
+      tenKho = k ? k.tenKho : '';
+    }
+    let hinhAnh = [];
+    if(pendingPhotosNhietDo.length){ hinhAnh = await uploadPhotos(pendingPhotosNhietDo, 'codien/nhietdo/'+khoId+'/'+Date.now()); }
+    await db.collection('cd_nhietdo').add({
+      khoId, tenKho, nhietDo, nguoiDo,
+      ghiChu: document.getElementById('nd_ghiChu').value.trim(),
+      hinhAnh,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    const k2 = khoLanhList.find(x=>x.id===khoId);
+    if(k2 && (nhietDo < k2.nhietDoMin || nhietDo > k2.nhietDoMax)){
+      showToast("⚠ Đã lưu — nhiệt độ đang NGOÀI mức chuẩn!");
+    } else {
+      showToast("Đã lưu kết quả đo");
+    }
+    closeModal();
+  }catch(e){ console.error(e); showToast("Lỗi: "+e.message); btn.disabled=false; }
+}
+function openNhietDoHistory(khoId){
+  const k = khoLanhList.find(x=>x.id===khoId);
+  if(!k) return;
+  const logs = nhietDoList.filter(n=>n.khoId===khoId);
+  const html = `
+    <div class="modal-overlay" onclick="if(event.target===this) closeModal()">
+      <div class="modal">
+        <div class="modal-title">${k.tenKho}<span class="x" onclick="closeModal()">&times;</span></div>
+        <div class="muted small">Mức chuẩn: ${k.nhietDoMin}°C ~ ${k.nhietDoMax}°C</div>
+        <label style="margin-top:14px;">Lịch sử đo</label>
+        <div class="timeline">
+          ${logs.length===0? '<div class="empty small">Chưa có lần đo nào.</div>' : logs.map(n=>{
+            const outOfRange = n.nhietDo < k.nhietDoMin || n.nhietDo > k.nhietDoMax;
+            return `
+            <div class="timeline-item">
+              <div class="t" style="color:${outOfRange?'var(--danger)':'var(--ok)'};">${n.nhietDo}°C ${outOfRange?'⚠':'✓'}</div>
+              <div class="d">${n.nguoiDo||''} · ${fmtDateTime(n.createdAt)}</div>
+              ${n.ghiChu? `<div class="small" style="margin-top:2px;">${n.ghiChu}</div>`:''}
+              ${n.hinhAnh&&n.hinhAnh.length? `<div class="photo-grid" style="margin-top:6px;">${n.hinhAnh.map(u=>`<img class="photo-thumb" src="${u}" onclick="previewImage('${u}')">`).join('')}</div>`:''}
+            </div>`;
+          }).join('')}
+        </div>
+      </div>
+    </div>`;
+  document.getElementById('modalRoot').innerHTML = html;
+}
+
+
 function genMaPhieu(){
   const d = new Date();
   return "SC" + d.getFullYear().toString().slice(2) + String(d.getMonth()+1).padStart(2,'0') + String(d.getDate()).padStart(2,'0') + "-" + Math.floor(Math.random()*900+100);
@@ -562,6 +775,23 @@ function fmtDateTime(ts){
   return d.toLocaleDateString('vi-VN') + " " + d.toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'});
 }
 function daysBetween(a,b){ return Math.round((b-a)/(1000*60*60*24)); }
+function toJsDate(ts){
+  if(!ts) return null;
+  return ts.toDate ? ts.toDate() : new Date(ts);
+}
+function fmtDuration(fromTs, toTs){
+  const from = toJsDate(fromTs), to = toJsDate(toTs);
+  if(!from || !to) return '';
+  let mins = Math.round((to - from) / 60000);
+  if(mins < 0) mins = 0;
+  if(mins < 60) return mins + ' phút';
+  const hours = Math.floor(mins / 60);
+  const remMins = mins % 60;
+  if(hours < 24) return remMins>0 ? `${hours} giờ ${remMins} phút` : `${hours} giờ`;
+  const days = Math.floor(hours / 24);
+  const remHours = hours % 24;
+  return remHours>0 ? `${days} ngày ${remHours} giờ` : `${days} ngày`;
+}
 
 function showToast(msg){
   const el = document.createElement('div');
@@ -587,6 +817,7 @@ async function logThongBao(tieuDe, noiDung, loai, lienKetId, taiKhoanNhan){
 function renderBaoTriView(){
   if(activeSubBT==='thietbi') renderThietBiList();
   else if(activeSubBT==='lich') renderLichBaoTri();
+  else if(activeSubBT==='nhietdo') renderNhietDoView();
   else renderLichSuBaoTri();
 }
 
@@ -869,6 +1100,7 @@ function renderSuaChuaList(){
         <span class="muted small">${p.maPhieu} · ${fmtDate(p.createdAt)}</span>
         <span class="badge-priority ${p.mucDoUuTien==='Khẩn cấp'?'pr-urgent':'pr-normal'}">${p.mucDoUuTien||'Bình thường'}</span>
       </div>
+      ${p.trangThai==='hoan_thanh' && p.ngayHoanThanh? `<div class="muted small" style="margin-top:4px;">⏱ Thời gian hoàn thành: ${fmtDuration(p.createdAt, p.ngayHoanThanh)}</div>`:''}
       <div class="small" style="margin-top:6px;">${(p.moTaSuCo||'').slice(0,90)}${(p.moTaSuCo||'').length>90?'...':''}</div>
       ${p.hinhAnhBaoCao&&p.hinhAnhBaoCao.length? `<div class="muted small" style="margin-top:6px;">📷 ${p.hinhAnhBaoCao.length} ảnh</div>`:''}
     </div>`;
@@ -1067,6 +1299,7 @@ function openPhieuDetail(id){
         `:''}
         ${p.chiPhi? `<div class="small" style="margin-top:8px;"><b>Chi phí:</b> ${Number(p.chiPhi).toLocaleString('vi-VN')} đ</div>`:''}
         ${p.ghiChuHoanThanh? `<div class="small" style="margin-top:4px;"><b>Ghi chú nghiệm thu:</b> ${p.ghiChuHoanThanh}</div>`:''}
+        ${p.trangThai==='hoan_thanh' && p.ngayHoanThanh? `<div class="small" style="margin-top:4px;"><b>Thời gian hoàn thành:</b> ${fmtDuration(p.createdAt, p.ngayHoanThanh)}</div>`:''}
 
         <label style="margin-top:16px;">Lịch sử xử lý</label>
         <div class="timeline">
@@ -1257,6 +1490,99 @@ async function hoanThanhPhieu(id){
 }
 
 function closeModal(){ document.getElementById('modalRoot').innerHTML=''; }
+
+/* ============================================================
+   ĐIỀU PHỐI CÔNG VIỆC
+   ============================================================ */
+let activeDPFilter = 'all';
+function filterDP(f){
+  activeDPFilter = f;
+  document.querySelectorAll('.dp-filter').forEach(b=>b.classList.toggle('active', b.dataset.f===f));
+  renderDieuPhoiList();
+}
+function renderDieuPhoiList(){
+  const el = document.getElementById('view-dieuphoi-list');
+  if(!el || !currentUser) return;
+  let list = dieuPhoiList;
+  if(activeDPFilter==='cuatoi') list = list.filter(v=> (v.nguoiNhan||[]).includes(currentUser.username));
+  else if(activeDPFilter==='toigiao') list = list.filter(v=> v.nguoiGiaoUsername===currentUser.username);
+  if(list.length===0){ el.innerHTML = '<div class="empty">Không có việc điều phối nào.</div>'; return; }
+  el.innerHTML = list.map(v=>{
+    const nguoiNhan = v.nguoiNhan||[];
+    const daXong = v.daXong||[];
+    const xongHet = nguoiNhan.length>0 && nguoiNhan.every(u=>daXong.includes(u));
+    const tenNguoiNhan = nguoiNhan.map(un=>{ const u = userList.find(x=>x.username===un); return u?u.displayName:un; });
+    const daNhanViec = currentUser && nguoiNhan.includes(currentUser.username);
+    const toiDaXong = currentUser && daXong.includes(currentUser.username);
+    return `
+    <div class="card">
+      <div class="row">
+        <h3 style="margin:0;">${escapeAttr(v.noiDung)}</h3>
+        <span class="badge-status ${xongHet?'st-done':'st-new'}">${xongHet?'Đã xong':(daXong.length>0? daXong.length+'/'+nguoiNhan.length+' xong':'Mới giao')}</span>
+      </div>
+      <div class="muted small" style="margin-top:4px;">${v.khuVuc||''} ${v.ngay? '· '+fmtDate(v.ngay):''}</div>
+      <div class="muted small" style="margin-top:4px;">Giao bởi: ${v.nguoiGiaoDisplay||'—'} · ${fmtDateTime(v.createdAt)}</div>
+      <div class="small" style="margin-top:6px;">👥 ${tenNguoiNhan.join(', ')||'—'}</div>
+      ${daNhanViec && !toiDaXong? `<button class="btn btn-ok" style="margin-top:10px;" onclick="danhDauXongDP('${v.id}')">✓ Tôi đã xong</button>`:''}
+      ${daNhanViec && toiDaXong? `<div class="small" style="margin-top:8px;color:var(--ok);">✓ Bạn đã đánh dấu xong việc này</div>`:''}
+    </div>`;
+  }).join('');
+}
+function escapeAttr(s){ const d=document.createElement('div'); d.textContent=s||''; return d.innerHTML; }
+function openDieuPhoiForm(){
+  if(!currentUser || !currentUser.quyen || !currentUser.quyen.dieuPhoi){ showToast("Bạn không có quyền điều phối công việc"); return; }
+  const userOptions = userList.map(u=>`
+    <div class="checklist-item"><input type="checkbox" class="dp-nguoi-nhan" value="${u.username}"><span>${u.displayName}</span></div>
+  `).join('');
+  const html = `
+    <div class="modal-overlay" onclick="if(event.target===this) closeModal()">
+      <div class="modal">
+        <div class="modal-title">📋 Giao việc mới<span class="x" onclick="closeModal()">&times;</span></div>
+        <label>Nội dung công việc *</label>
+        <textarea id="dp_noiDung" placeholder="VD: Làm ống khói Tấn Khởi, xử lý điện nước..."></textarea>
+        <label>Khu vực / Xưởng</label>
+        <input id="dp_khuVuc" placeholder="VD: Xưởng 4">
+        <label>Ngày thực hiện</label>
+        <input id="dp_ngay" type="date" value="${new Date().toISOString().slice(0,10)}">
+        <label>Giao cho (chọn 1 hoặc nhiều người)</label>
+        <div>${userOptions}</div>
+        <button class="btn btn-primary" onclick="submitDieuPhoi()">Giao việc</button>
+      </div>
+    </div>`;
+  document.getElementById('modalRoot').innerHTML = html;
+}
+async function submitDieuPhoi(){
+  const noiDung = document.getElementById('dp_noiDung').value.trim();
+  const khuVuc = document.getElementById('dp_khuVuc').value.trim();
+  const ngay = document.getElementById('dp_ngay').value;
+  const nguoiNhan = Array.from(document.querySelectorAll('.dp-nguoi-nhan:checked')).map(el=>el.value);
+  if(!noiDung){ showToast("Nhập nội dung công việc"); return; }
+  if(nguoiNhan.length===0){ showToast("Chọn ít nhất 1 người nhận việc"); return; }
+  try{
+    const docRef = await db.collection('cd_dieuphoi').add({
+      noiDung, khuVuc, ngay: ngay? new Date(ngay) : null,
+      nguoiGiaoUsername: currentUser.username, nguoiGiaoDisplay: currentUser.displayName,
+      nguoiNhan, daXong: [],
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    await logThongBao("Bạn có việc mới được giao", noiDung.slice(0,80), 'dieuphoi_moi', docRef.id, nguoiNhan);
+    showToast("Đã giao việc"); closeModal();
+  }catch(e){ console.error(e); showToast("Lỗi: "+e.message); }
+}
+async function danhDauXongDP(id){
+  const v = dieuPhoiList.find(x=>x.id===id);
+  if(!v) return;
+  const daXong = [...new Set([...(v.daXong||[]), currentUser.username])];
+  await db.collection('cd_dieuphoi').doc(id).update({daXong});
+  showToast("Đã đánh dấu xong");
+  if(v.nguoiGiaoUsername && v.nguoiGiaoUsername!==currentUser.username){
+    const nguoiNhan = v.nguoiNhan||[];
+    if(nguoiNhan.every(u=>daXong.includes(u))){
+      await logThongBao("Việc đã hoàn thành", (v.noiDung||'').slice(0,80)+" — tất cả đã xong", 'dieuphoi_xong', id, [v.nguoiGiaoUsername]);
+    }
+  }
+}
+
 function renderNotifBadge(){
   if(!currentUser) return;
   const unread = notifList.filter(n=>{
