@@ -145,7 +145,7 @@
   <div class="app-header">
     <div>
       <h1>⚙️ Kỹ Thuật Cơ Điện</h1>
-      <div class="ver">Phiên bản: V1.4.0</div>
+      <div class="ver">Phiên bản: V1.4.1</div>
     </div>
     <div class="row" style="gap:8px;">
       <div class="role-chip" id="roleChip" onclick="doLogout()">—</div>
@@ -1446,7 +1446,7 @@ function openPhieuDetail(id){
   const html = `
     <div class="modal-overlay" onclick="if(event.target===this) closeModal()">
       <div class="modal">
-        <div class="modal-title">${p.maPhieu}<span class="x" onclick="closeModal()">&times;</span></div>
+        <div class="modal-title"><span>${p.maPhieu}${q.duyet? ` <span onclick="deletePhieu('${p.id}')" style="cursor:pointer;font-size:14px;color:var(--danger);font-weight:600;">🗑 Xoá</span>`:''}</span><span class="x" onclick="closeModal()">&times;</span></div>
         <div class="row"><h3 style="margin:0;">${p.tenMay}</h3><span class="badge-status ${st.cls}">${st.label}</span></div>
         <div class="badge-priority ${p.mucDoUuTien==='Khẩn cấp'?'pr-urgent':'pr-normal'}" style="margin-top:6px;display:inline-block;">${p.mucDoUuTien||'Bình thường'}</div>
         <div class="small" style="margin-top:10px;"><b>Mô tả sự cố:</b> ${p.moTaSuCo}</div>
@@ -1665,6 +1665,15 @@ async function hoanThanhPhieu(id){
     logHoatDong("Hoàn thành sửa chữa", p.maPhieu);
     showToast("Đã hoàn thành phiếu sửa chữa"); closeModal();
   }catch(e){ console.error(e); showToast("Lỗi: "+e.message); btn.disabled=false; }
+}
+async function deletePhieu(id){
+  const p = phieuList.find(x=>x.id===id);
+  if(!p) return;
+  if(!confirm(`Xoá hẳn phiếu ${p.maPhieu} (${p.tenMay})? Không thể hoàn tác.`)) return;
+  await db.collection('cd_phieusuachua').doc(id).delete();
+  logHoatDong("Xoá phiếu sửa chữa", p.maPhieu+" — "+p.tenMay);
+  showToast("Đã xoá phiếu "+p.maPhieu);
+  closeModal();
 }
 
 function closeModal(){ document.getElementById('modalRoot').innerHTML=''; }
