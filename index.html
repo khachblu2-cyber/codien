@@ -191,7 +191,7 @@
   <div class="app-header">
     <div>
       <h1>⚙️ Kỹ Thuật Cơ Điện</h1>
-      <div class="ver">Phiên bản: V1.8.2</div>
+      <div class="ver">Phiên bản: V1.8.3</div>
     </div>
     <div class="row" style="gap:8px;">
       <div class="role-chip" id="roleChip" onclick="doLogout()">—</div>
@@ -2070,7 +2070,8 @@ async function requestPushPermission(){
   try{
     const perm = await Notification.requestPermission();
     if(perm !== 'granted'){ showToast("Bạn chưa cho phép nhận thông báo"); return; }
-    const token = await messaging.getToken({vapidKey: VAPID_KEY});
+    const swReg = await navigator.serviceWorker.register('./firebase-messaging-sw.js');
+    const token = await messaging.getToken({vapidKey: VAPID_KEY, serviceWorkerRegistration: swReg});
     if(token){
       await db.collection('cd_fcmtokens').doc(token).set({
         token, username: currentUser.username, displayName: currentUser.displayName,
