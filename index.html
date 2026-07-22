@@ -8,6 +8,8 @@
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js" defer></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js" defer></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js" defer></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-storage-compat.js" defer></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-messaging-compat.js" defer></script>
 <style>
   :root{
     --primary:#165dd8; --primary-dark:#0e3f9c; --bg:#f2f4f7; --card:#ffffff;
@@ -92,6 +94,12 @@
   .checklist-item input[type=checkbox]{width:19px;height:19px;flex:0 0 auto;}
   .checklist-item span{flex:1;font-size:13.5px;}
   .checklist-item .del{color:var(--danger);font-size:18px;cursor:pointer;}
+  .copy-btn{border:1px solid var(--border);background:#fff;border-radius:8px;width:28px;height:28px;flex:0 0 auto;
+    font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+  .chip-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;}
+  .chip-time{flex:0 0 auto;padding:7px 13px;border-radius:20px;border:1px solid var(--primary);background:#fff;
+    color:var(--primary);font-size:12.5px;font-weight:600;cursor:pointer;}
+  .chip-time:active{background:var(--primary);color:#fff;}
 
   .timeline{border-left:2px solid var(--border);margin-left:6px;padding-left:14px;}
   .timeline-item{position:relative;padding-bottom:14px;}
@@ -183,7 +191,7 @@
   <div class="app-header">
     <div>
       <h1>⚙️ Kỹ Thuật Cơ Điện</h1>
-      <div class="ver">Phiên bản: V1.4.4</div>
+      <div class="ver">Phiên bản: V1.7.0</div>
     </div>
     <div class="row" style="gap:8px;">
       <div class="role-chip" id="roleChip" onclick="doLogout()">—</div>
@@ -334,7 +342,9 @@ const firebaseConfig = {
   appId: "1:900824130297:web:27cff5c2f775cf2bd93828"
 };
 
-let app, db;
+let app, db, storage, messaging;
+// ⚠️ Dán VAPID key lấy trong Firebase Console > Project Settings > Cloud Messaging > Web Push certificates
+const VAPID_KEY = "DÁN_VAPID_KEY_TẠI_ĐÂY";
 let firebaseReady = false;
 
 async function cloudInit(){
@@ -342,6 +352,7 @@ async function cloudInit(){
     app = firebase.initializeApp(firebaseConfig);
     await firebase.auth().signInAnonymously();
     db = firebase.firestore();
+    storage = firebase.storage();
     db.enablePersistence({synchronizeTabs:true}).catch(()=>{});
     firebaseReady = true;
     afterFirebaseReady();
@@ -694,6 +705,7 @@ let activityLogList = [];
 function afterFirebaseReady(){
   attachUserListener();
   attachListeners();
+  setupMessaging();
 }
 
 function attachListeners(){
@@ -1466,16 +1478,13 @@ function previewImage(src){
 }
 function closeModal2(){ const el = document.getElementById('imgPreview'); if(el) el.remove(); }
 
-// ⚠️ TẠM THỜI (chế độ test): lưu ảnh trực tiếp trong Firestore, KHÔNG cần
-// Google Apps Script hay Blaze. Khi bạn nâng Blaze / lấy xong link GAS,
-// báo mình để đổi hàm này sang tải ảnh lên nơi lưu trữ thật.
-const GAS_UPLOAD_URL = "DÁN_LINK_WEB_APP_TẠI_ĐÂY"; // chưa dùng ở chế độ test
-
 async function uploadPhotos(photos, path){
-  const urls = photos.map(p => p.dataUrl);
-  const totalBytes = urls.reduce((s,u)=> s + u.length, 0);
-  if(totalBytes > 700000){
-    throw new Error('Ảnh quá nặng để lưu tạm trong Firestore (chế độ test) — chụp ít ảnh hơn hoặc đợi lên Blaze để lưu ảnh thật.');
+  const urls = [];
+  for(const p of photos){
+    const blob = await (await fetch(p.dataUrl)).blob();
+    const ref = storage.ref().child(path + '/' + Date.now() + '_' + Math.random().toString(36).slice(2) + '.jpg');
+    await ref.put(blob);
+    urls.push(await ref.getDownloadURL());
   }
   return urls;
 }
@@ -1562,7 +1571,8 @@ function openPhieuDetail(id){
         <div class="row"><h3 style="margin:0;">${p.tenMay}</h3><span class="badge-status ${st.cls}">${st.label}</span></div>
         <div class="badge-priority ${p.mucDoUuTien==='Khẩn cấp'?'pr-urgent':'pr-normal'}" style="margin-top:6px;display:inline-block;">${p.mucDoUuTien||'Bình thường'}</div>
         <div class="small" style="margin-top:10px;"><b>Mô tả sự cố:</b> ${p.moTaSuCo}</div>
-        ${p.yeuCauVatTu? `<div class="small" style="margin-top:4px;"><b>Yêu cầu vật tư:</b> ${p.yeuCauVatTu}</div>`:''}
+        ${p.yeuCauVatTu? `<div class="small" style="margin-top:4px;display:flex;align-items:flex-start;gap:6px;"><div style="flex:1;"><b>Yêu cầu vật tư:</b> ${p.yeuCauVatTu}</div><button class="copy-btn" data-copy="${escAttr(p.yeuCauVatTu)}" onclick="copyYeuCauVatTu(this.dataset.copy)" title="Copy nội dung">📋</button></div>`:''}
+        ${p.vatTuDuKien? `<div class="small" style="margin-top:4px;"><b>Vật tư dự kiến có lúc:</b> ${fmtDateTime(p.vatTuDuKien)}</div>`:''}
         <div class="muted small" style="margin-top:4px;">Người báo cáo: ${p.nguoiBaoCao||'—'} · ${fmtDateTime(p.createdAt)}</div>
         ${p.hinhAnhBaoCao&&p.hinhAnhBaoCao.length? `
           <label>Ảnh sự cố</label>
@@ -1611,6 +1621,18 @@ function renderVatTuReadyBlock(id){
     <input type="file" id="photoInputVatTu" accept="image/*" multiple style="display:none;" onchange="onPhotoSelectVatTu(event)">
     <label>Gọi ai vào nhận việc? (không bắt buộc)</label>
     <select id="d_taggedUser"><option value="">-- Không chọn --</option>${options}</select>
+    <label>Vật tư có sau</label>
+    <div class="chip-row">
+      <button class="chip-time" onclick="datVatTuDuKien('${id}',1)">1h</button>
+      <button class="chip-time" onclick="datVatTuDuKien('${id}',2)">2h</button>
+      <button class="chip-time" onclick="datVatTuDuKien('${id}',8)">8h</button>
+      <button class="chip-time" onclick="datVatTuDuKien('${id}',24)">Ngày mai</button>
+      <button class="chip-time" onclick="toggleChonNgayVatTu('${id}')">📅 Chọn ngày</button>
+    </div>
+    <div id="chonNgayVatTuBox_${id}" class="hidden" style="margin-top:8px;">
+      <input type="datetime-local" id="chonNgayVatTuInput_${id}">
+      <button class="btn btn-outline" onclick="xacNhanChonNgayVatTu('${id}')">Xác nhận ngày</button>
+    </div>
     <button class="btn btn-primary" onclick="xacNhanCoVatTu('${id}')">✓ Đã có vật tư</button>`;
 }
 
@@ -1695,6 +1717,57 @@ async function doiVatTu(id){
   });
   logHoatDong("Chuyển sang đợi vật tư", p.maPhieu);
   showToast("Đã chuyển sang trạng thái đợi vật tư"); closeModal();
+}
+function escAttr(str){
+  return String(str==null?'':str).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+function copyYeuCauVatTu(text){
+  const done = ()=> showToast("Đã copy nội dung yêu cầu vật tư");
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(done).catch(()=>{ fallbackCopyText(text); done(); });
+  } else {
+    fallbackCopyText(text); done();
+  }
+}
+function fallbackCopyText(text){
+  const ta = document.createElement('textarea');
+  ta.value = text; ta.style.position='fixed'; ta.style.opacity='0';
+  document.body.appendChild(ta); ta.focus(); ta.select();
+  try{ document.execCommand('copy'); }catch(e){}
+  document.body.removeChild(ta);
+}
+async function datVatTuDuKien(id, hours){
+  const target = new Date(Date.now() + hours*3600*1000);
+  await luuVatTuDuKien(id, target);
+}
+function toggleChonNgayVatTu(id){
+  const box = document.getElementById('chonNgayVatTuBox_'+id);
+  if(!box) return;
+  box.classList.toggle('hidden');
+  if(!box.classList.contains('hidden')){
+    const inp = document.getElementById('chonNgayVatTuInput_'+id);
+    if(inp && !inp.value){
+      const d = new Date(Date.now()+3600*1000);
+      d.setMinutes(d.getMinutes()-d.getTimezoneOffset());
+      inp.value = d.toISOString().slice(0,16);
+    }
+  }
+}
+async function xacNhanChonNgayVatTu(id){
+  const inp = document.getElementById('chonNgayVatTuInput_'+id);
+  if(!inp || !inp.value){ showToast("Chọn ngày giờ trước đã"); return; }
+  await luuVatTuDuKien(id, new Date(inp.value));
+}
+async function luuVatTuDuKien(id, target){
+  const p = phieuList.find(x=>x.id===id);
+  if(!p) return;
+  const lichSu = await addLichSu(id, 'Dự kiến có vật tư lúc '+fmtDateTime(target));
+  try{
+    await db.collection('cd_phieusuachua').doc(id).update({ vatTuDuKien: target, lichSu });
+    logHoatDong("Cập nhật vật tư dự kiến", p.maPhieu);
+    showToast("Đã ghi nhận thời gian dự kiến có vật tư");
+    closeModal();
+  }catch(e){ console.error(e); showToast("Lỗi: "+e.message); }
 }
 let pendingPhotosVatTu = [];
 function renderPhotoGridVatTu(){
@@ -1916,6 +1989,7 @@ function openNotifPanel(){
             <div class="small muted">${n.noiDung||''}</div>
           </div>
         `).join('')}
+        <button class="btn btn-outline" onclick="requestPushPermission()">🔔 Bật thông báo đẩy trên điện thoại</button>
       </div>
     </div>`;
   document.getElementById('modalRoot').innerHTML = html;
@@ -1925,6 +1999,37 @@ function openNotifPanel(){
       db.collection('cd_thongbao').doc(n.id).update({['daDoc.'+currentUser.username]: true}).catch(()=>{});
     }
   });
+}
+
+/* ============================================================
+   THÔNG BÁO ĐẨY (FCM) — báo ra ngoài màn hình khoá máy
+   ============================================================ */
+function setupMessaging(){
+  if(!firebase.messaging || !firebase.messaging.isSupported || !firebase.messaging.isSupported()){ return; }
+  try{
+    messaging = firebase.messaging();
+    navigator.serviceWorker.register('firebase-messaging-sw.js').then(reg=>{
+      messaging.onMessage(payload=>{
+        showToast("🔔 "+(payload.notification?.title||"Thông báo mới"));
+      });
+    }).catch(e=>console.warn("SW đăng ký lỗi:", e));
+  }catch(e){ console.warn("Messaging không khả dụng:", e); }
+}
+async function requestPushPermission(){
+  if(!currentUser){ showToast("Chưa đăng nhập"); return; }
+  if(!messaging){ showToast("Trình duyệt này không hỗ trợ thông báo đẩy"); return; }
+  try{
+    const perm = await Notification.requestPermission();
+    if(perm !== 'granted'){ showToast("Bạn chưa cho phép nhận thông báo"); return; }
+    const token = await messaging.getToken({vapidKey: VAPID_KEY});
+    if(token){
+      await db.collection('cd_fcmtokens').doc(token).set({
+        token, username: currentUser.username, displayName: currentUser.displayName,
+        capNhat: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      showToast("✓ Đã bật thông báo đẩy thành công");
+    }
+  }catch(e){ console.error(e); showToast("Lỗi khi bật thông báo: "+e.message); }
 }
 </script>
 </body>
