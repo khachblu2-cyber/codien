@@ -191,7 +191,7 @@
   <div class="app-header">
     <div>
       <h1>⚙️ Kỹ Thuật Cơ Điện</h1>
-      <div class="ver">Phiên bản: V1.8.4</div>
+      <div class="ver">Phiên bản: V1.9.0</div>
     </div>
     <div class="row" style="gap:8px;">
       <div class="role-chip" id="roleChip" onclick="doLogout()">—</div>
@@ -1934,23 +1934,26 @@ function renderDieuPhoiList(){
   if(list.length===0){ el.innerHTML = '<div class="empty">Không có việc điều phối nào.</div>'; return; }
   el.innerHTML = list.map(v=>{
     const nguoiNhan = v.nguoiNhan||[];
+    const daNhanViec = v.daNhanViec||[];
     const daXong = v.daXong||[];
     const xongHet = nguoiNhan.length>0 && nguoiNhan.every(u=>daXong.includes(u));
     const tenNguoiNhan = nguoiNhan.map(un=>{ const u = userList.find(x=>x.username===un); return u?u.displayName:un; });
-    const daNhanViec = currentUser && nguoiNhan.includes(currentUser.username);
+    const toiDuocGiao = currentUser && nguoiNhan.includes(currentUser.username);
+    const toiDaNhan = currentUser && daNhanViec.includes(currentUser.username);
     const toiDaXong = currentUser && daXong.includes(currentUser.username);
     const coTheXoa = currentUser && (v.nguoiGiaoUsername===currentUser.username || (currentUser.quyen&&currentUser.quyen.dieuPhoi));
     return `
-    <div class="card">
+    <div class="card" id="dp-item-${v.id}">
       <div class="row">
         <h3 style="margin:0;">${escapeAttr(v.noiDung)}</h3>
         <span class="badge-status ${xongHet?'st-done':'st-new'}">${xongHet?'Đã xong':(daXong.length>0? daXong.length+'/'+nguoiNhan.length+' xong':'Mới giao')}</span>
       </div>
-      <div class="muted small" style="margin-top:4px;">${v.khuVuc||''} ${v.ngay? '· '+fmtDate(v.ngay):''}</div>
+      <div class="muted small" style="margin-top:4px;">${v.khuVuc||''} ${v.ngayHen? '· ⏰ '+fmtDateTime(v.ngayHen) : (v.ngay? '· '+fmtDate(v.ngay):'')}</div>
       <div class="muted small" style="margin-top:4px;">Giao bởi: ${v.nguoiGiaoDisplay||'—'} · ${fmtDateTime(v.createdAt)}</div>
       <div class="small" style="margin-top:6px;">👥 ${tenNguoiNhan.join(', ')||'—'}</div>
-      ${daNhanViec && !toiDaXong? `<button class="btn btn-ok" style="margin-top:10px;" onclick="danhDauXongDP('${v.id}')">✓ Tôi đã xong</button>`:''}
-      ${daNhanViec && toiDaXong? `<div class="small" style="margin-top:8px;color:var(--ok);">✓ Bạn đã đánh dấu xong việc này</div>`:''}
+      ${toiDuocGiao && !toiDaNhan? `<button class="btn btn-primary" style="margin-top:10px;" onclick="nhanViecDP('${v.id}')">📥 Nhận việc</button>`:''}
+      ${toiDaNhan && !toiDaXong? `<button class="btn btn-ok" style="margin-top:10px;" onclick="danhDauXongDP('${v.id}')">✓ Hoàn thành</button>`:''}
+      ${toiDaXong? `<div class="small" style="margin-top:8px;color:var(--ok);">✓ Bạn đã hoàn thành việc này</div>`:''}
       ${coTheXoa? `<button class="btn btn-outline" style="margin-top:10px;color:var(--danger);border-color:var(--danger);" onclick="deleteDieuPhoi('${v.id}')">🗑 Xoá việc này</button>`:''}
     </div>`;
   }).join('');
@@ -1971,6 +1974,8 @@ function openDieuPhoiForm(){
         <input id="dp_khuVuc" placeholder="VD: Xưởng 4">
         <label>Ngày thực hiện</label>
         <input id="dp_ngay" type="date" value="${new Date().toISOString().slice(0,10)}">
+        <label>Giờ hẹn (không bắt buộc — để trống nếu không cần nhắc giờ)</label>
+        <input id="dp_gio" type="time">
         <label>Giao cho (chọn 1 hoặc nhiều người)</label>
         <div>${userOptions}</div>
         <button class="btn btn-primary" onclick="submitDieuPhoi()">Giao việc</button>
@@ -1982,14 +1987,17 @@ async function submitDieuPhoi(){
   const noiDung = document.getElementById('dp_noiDung').value.trim();
   const khuVuc = document.getElementById('dp_khuVuc').value.trim();
   const ngay = document.getElementById('dp_ngay').value;
+  const gio = document.getElementById('dp_gio').value;
   const nguoiNhan = Array.from(document.querySelectorAll('.dp-nguoi-nhan:checked')).map(el=>el.value);
   if(!noiDung){ showToast("Nhập nội dung công việc"); return; }
   if(nguoiNhan.length===0){ showToast("Chọn ít nhất 1 người nhận việc"); return; }
+  let ngayHen = null;
+  if(ngay && gio) ngayHen = new Date(ngay+'T'+gio+':00');
   try{
     const docRef = await db.collection('cd_dieuphoi').add({
-      noiDung, khuVuc, ngay: ngay? new Date(ngay) : null,
+      noiDung, khuVuc, ngay: ngay? new Date(ngay) : null, ngayHen, dpDaNhac: [],
       nguoiGiaoUsername: currentUser.username, nguoiGiaoDisplay: currentUser.displayName,
-      nguoiNhan, daXong: [],
+      nguoiNhan, daNhanViec: [], daXong: [],
       createdAt: firebase.firestore.FieldValue.serverTimestamp()
     });
     await logThongBao("Bạn có việc mới được giao", noiDung.slice(0,80), 'dieuphoi_moi', docRef.id, nguoiNhan);
@@ -1997,18 +2005,43 @@ async function submitDieuPhoi(){
     showToast("Đã giao việc"); closeModal();
   }catch(e){ console.error(e); showToast("Lỗi: "+e.message); }
 }
+async function nhanViecDP(id){
+  const v = dieuPhoiList.find(x=>x.id===id);
+  if(!v) return;
+  const daNhanViec = [...new Set([...(v.daNhanViec||[]), currentUser.username])];
+  await db.collection('cd_dieuphoi').doc(id).update({daNhanViec});
+  logHoatDong("Nhận việc điều phối", (v.noiDung||'').slice(0,60));
+  showToast("Đã nhận việc");
+}
 async function danhDauXongDP(id){
   const v = dieuPhoiList.find(x=>x.id===id);
   if(!v) return;
   const daXong = [...new Set([...(v.daXong||[]), currentUser.username])];
   await db.collection('cd_dieuphoi').doc(id).update({daXong});
-  logHoatDong("Đánh dấu xong việc điều phối", (v.noiDung||'').slice(0,60));
-  showToast("Đã đánh dấu xong");
+  logHoatDong("Hoàn thành việc điều phối", (v.noiDung||'').slice(0,60));
+  showToast("Đã đánh dấu hoàn thành");
   if(v.nguoiGiaoUsername && v.nguoiGiaoUsername!==currentUser.username){
     const nguoiNhan = v.nguoiNhan||[];
     if(nguoiNhan.every(u=>daXong.includes(u))){
       await logThongBao("Việc đã hoàn thành", (v.noiDung||'').slice(0,80)+" — tất cả đã xong", 'dieuphoi_xong', id, [v.nguoiGiaoUsername]);
     }
+  }
+}
+function openNotifItem(loai, lienKetId){
+  closeModal();
+  if(loai==='dieuphoi_moi' || loai==='dieuphoi_xong'){
+    if(currentUser && currentUser.quyen && currentUser.quyen.xemDieuPhoi){
+      switchTab('dieuphoi');
+      setTimeout(()=>{
+        renderDieuPhoiList();
+        const el = document.getElementById('dp-item-'+lienKetId);
+        if(el){ el.scrollIntoView({behavior:'smooth', block:'center'}); el.style.outline='2px solid var(--primary)'; setTimeout(()=>el.style.outline='',2000); }
+      }, 150);
+    }
+  } else if(loai==='nhac_baotri'){
+    switchTab('baotri');
+  } else if(lienKetId){
+    openPhieuDetail(lienKetId);
   }
 }
 async function deleteDieuPhoi(id){
@@ -2037,7 +2070,7 @@ function openNotifPanel(){
       <div class="modal">
         <div class="modal-title">Thông báo<span class="x" onclick="closeModal()">&times;</span></div>
         ${mine.length===0? '<div class="empty">Chưa có thông báo nào.</div>' : mine.map(n=>`
-          <div class="card" onclick="openPhieuDetail('${n.lienKetId}')" style="cursor:pointer;">
+          <div class="card" onclick="openNotifItem('${n.loai||''}','${n.lienKetId||''}')" style="cursor:pointer;">
             <div class="row"><b class="small">${n.tieuDe}</b><span class="muted small">${fmtDateTime(n.createdAt)}</span></div>
             <div class="small muted">${n.noiDung||''}</div>
           </div>
