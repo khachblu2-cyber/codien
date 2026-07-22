@@ -191,7 +191,7 @@
   <div class="app-header">
     <div>
       <h1>⚙️ Kỹ Thuật Cơ Điện</h1>
-      <div class="ver">Phiên bản: V1.7.0</div>
+      <div class="ver">Phiên bản: V1.8.0</div>
     </div>
     <div class="row" style="gap:8px;">
       <div class="role-chip" id="roleChip" onclick="doLogout()">—</div>
@@ -244,6 +244,8 @@
         <input id="tk_username" placeholder="Tên đăng nhập">
         <label>Mật khẩu</label>
         <input id="tk_password" type="text" placeholder="Mật khẩu">
+        <label>Số ĐT nhân viên</label>
+        <input id="tk_soDT" type="tel" placeholder="VD: 0909xxxxxx">
         <label>Quyền hạn</label>
         <div class="checklist-item"><input type="checkbox" id="tk_q_duyet"><span>Duyệt phiếu sửa chữa</span></div>
         <div class="checklist-item"><input type="checkbox" id="tk_q_capVT"><span>Cấp vật tư</span></div>
@@ -454,6 +456,7 @@ async function addAccount(){
   const displayName = document.getElementById('tk_displayName').value.trim();
   const username = document.getElementById('tk_username').value.trim();
   const password = document.getElementById('tk_password').value;
+  const soDT = document.getElementById('tk_soDT').value.trim();
   if(!displayName || !username || !password){ showToast("Vui lòng nhập đủ thông tin"); return; }
   if(userList.some(u=>u.username===username)){ showToast("Tên đăng nhập đã tồn tại"); return; }
   const quyen = {
@@ -467,9 +470,9 @@ async function addAccount(){
     xemDieuPhoi: document.getElementById('tk_q_xemDieuPhoi').checked,
     xemTaiKhoan: document.getElementById('tk_q_xemTaiKhoan').checked,
   };
-  await db.collection('cd_users').add({username, password, displayName, quyen});
+  await db.collection('cd_users').add({username, password, displayName, soDT, quyen});
   logHoatDong("Tạo tài khoản mới", displayName+" ("+username+")");
-  ['tk_displayName','tk_username','tk_password'].forEach(id=>document.getElementById(id).value='');
+  ['tk_displayName','tk_username','tk_password','tk_soDT'].forEach(id=>document.getElementById(id).value='');
   showToast("Đã thêm tài khoản "+displayName);
 }
 let editingAccId = null;
@@ -479,6 +482,7 @@ async function saveEditAccount(id){
   const displayName = document.getElementById('ea_displayName-'+id).value.trim();
   const username = document.getElementById('ea_username-'+id).value.trim();
   const password = document.getElementById('ea_password-'+id).value;
+  const soDT = document.getElementById('ea_soDT-'+id).value.trim();
   if(!displayName || !username || !password){ showToast("Vui lòng nhập đủ thông tin"); return; }
   if(userList.some(u=>u.username===username && u.id!==id)){ showToast("Tên đăng nhập đã tồn tại"); return; }
   const quyen = {
@@ -492,7 +496,7 @@ async function saveEditAccount(id){
     xemDieuPhoi: document.getElementById('ea_q_xemDieuPhoi-'+id).checked,
     xemTaiKhoan: document.getElementById('ea_q_xemTaiKhoan-'+id).checked,
   };
-  await db.collection('cd_users').doc(id).update({displayName, username, password, quyen});
+  await db.collection('cd_users').doc(id).update({displayName, username, password, soDT, quyen});
   logHoatDong("Sửa tài khoản", displayName+" ("+username+")");
   editingAccId = null;
   showToast("Đã cập nhật tài khoản");
@@ -596,6 +600,7 @@ function renderAccountList(){
           <label>Tên hiển thị</label><input id="ea_displayName-${u.id}" value="${u.displayName}">
           <label>Tên đăng nhập</label><input id="ea_username-${u.id}" value="${u.username}">
           <label>Mật khẩu</label><input id="ea_password-${u.id}" type="text" value="${u.password}">
+          <label>Số ĐT nhân viên</label><input id="ea_soDT-${u.id}" type="tel" value="${u.soDT||''}" placeholder="VD: 0909xxxxxx">
           <label>Quyền hạn</label>
           <div class="checklist-item"><input type="checkbox" id="ea_q_duyet-${u.id}" ${q.duyet?'checked':''}><span>Duyệt phiếu sửa chữa</span></div>
           <div class="checklist-item"><input type="checkbox" id="ea_q_capVT-${u.id}" ${q.capVT?'checked':''}><span>Cấp vật tư</span></div>
@@ -624,6 +629,7 @@ function renderAccountList(){
         </div>
         <div class="small muted" style="margin-top:4px;">Quyền: ${quyenLabel(q)}</div>
         <div class="small muted" style="margin-top:2px;">Tab xem được: ${tabViewLabel(q)}</div>
+        ${u.soDT? `<div class="small muted" style="margin-top:2px;">📞 ${u.soDT}</div>`:''}
       </div>`;
   }).join('');
 }
@@ -1391,6 +1397,7 @@ function renderSuaChuaList(){
         <span class="muted small">${p.maPhieu} · ${fmtDate(p.createdAt)}</span>
         <span class="badge-priority ${p.mucDoUuTien==='Khẩn cấp'?'pr-urgent':'pr-normal'}">${p.mucDoUuTien||'Bình thường'}</span>
       </div>
+      ${p.vatTuDuKien? `<div class="small vt-countdown" data-target="${toJsDate(p.vatTuDuKien).getTime()}" data-kieu="${p.vatTuHenKieu||'gio'}" style="margin-top:4px;font-weight:700;color:var(--status-supply);">${renderVtCountdown(p.vatTuDuKien,p.vatTuHenKieu)}</div>`:''}
       ${p.trangThai==='hoan_thanh' && p.ngayHoanThanh? `<div class="muted small" style="margin-top:4px;">⏱ Thời gian hoàn thành: ${fmtDuration(p.createdAt, p.ngayHoanThanh)}</div>`:''}
       <div class="small" style="margin-top:6px;">${(p.moTaSuCo||'').slice(0,90)}${(p.moTaSuCo||'').length>90?'...':''}</div>
       ${p.hinhAnhBaoCao&&p.hinhAnhBaoCao.length? `<div class="muted small" style="margin-top:6px;">📷 ${p.hinhAnhBaoCao.length} ảnh</div>`:''}
@@ -1572,7 +1579,7 @@ function openPhieuDetail(id){
         <div class="badge-priority ${p.mucDoUuTien==='Khẩn cấp'?'pr-urgent':'pr-normal'}" style="margin-top:6px;display:inline-block;">${p.mucDoUuTien||'Bình thường'}</div>
         <div class="small" style="margin-top:10px;"><b>Mô tả sự cố:</b> ${p.moTaSuCo}</div>
         ${p.yeuCauVatTu? `<div class="small" style="margin-top:4px;display:flex;align-items:flex-start;gap:6px;"><div style="flex:1;"><b>Yêu cầu vật tư:</b> ${p.yeuCauVatTu}</div><button class="copy-btn" data-copy="${escAttr(p.yeuCauVatTu)}" onclick="copyYeuCauVatTu(this.dataset.copy)" title="Copy nội dung">📋</button></div>`:''}
-        ${p.vatTuDuKien? `<div class="small" style="margin-top:4px;"><b>Vật tư dự kiến có lúc:</b> ${fmtDateTime(p.vatTuDuKien)}</div>`:''}
+        ${p.vatTuDuKien? `<div class="small" style="margin-top:4px;"><b>${p.vatTuHenKieu==='ngay'?'Dự kiến Vật Tư:':'Vật tư dự kiến:'}</b> <span class="vt-countdown" data-target="${toJsDate(p.vatTuDuKien).getTime()}" data-kieu="${p.vatTuHenKieu||'gio'}">${renderVtCountdown(p.vatTuDuKien,p.vatTuHenKieu)}</span></div>`:''}
         <div class="muted small" style="margin-top:4px;">Người báo cáo: ${p.nguoiBaoCao||'—'} · ${fmtDateTime(p.createdAt)}</div>
         ${p.hinhAnhBaoCao&&p.hinhAnhBaoCao.length? `
           <label>Ảnh sự cố</label>
@@ -1625,6 +1632,7 @@ function renderVatTuReadyBlock(id){
     <div class="chip-row">
       <button class="chip-time" onclick="datVatTuDuKien('${id}',1)">1h</button>
       <button class="chip-time" onclick="datVatTuDuKien('${id}',2)">2h</button>
+      <button class="chip-time" onclick="datVatTuDuKien('${id}',4)">4h</button>
       <button class="chip-time" onclick="datVatTuDuKien('${id}',8)">8h</button>
       <button class="chip-time" onclick="datVatTuDuKien('${id}',24)">Ngày mai</button>
       <button class="chip-time" onclick="toggleChonNgayVatTu('${id}')">📅 Chọn ngày</button>
@@ -1738,7 +1746,8 @@ function fallbackCopyText(text){
 }
 async function datVatTuDuKien(id, hours){
   const target = new Date(Date.now() + hours*3600*1000);
-  await luuVatTuDuKien(id, target);
+  const kieu = hours>=20 ? 'ngay' : 'gio';
+  await luuVatTuDuKien(id, target, kieu);
 }
 function toggleChonNgayVatTu(id){
   const box = document.getElementById('chonNgayVatTuBox_'+id);
@@ -1756,18 +1765,57 @@ function toggleChonNgayVatTu(id){
 async function xacNhanChonNgayVatTu(id){
   const inp = document.getElementById('chonNgayVatTuInput_'+id);
   if(!inp || !inp.value){ showToast("Chọn ngày giờ trước đã"); return; }
-  await luuVatTuDuKien(id, new Date(inp.value));
+  const target = new Date(inp.value);
+  const now = new Date();
+  const sameDay = target.getFullYear()===now.getFullYear() && target.getMonth()===now.getMonth() && target.getDate()===now.getDate();
+  const kieu = sameDay ? 'gio' : 'ngay';
+  await luuVatTuDuKien(id, target, kieu);
 }
-async function luuVatTuDuKien(id, target){
+async function luuVatTuDuKien(id, target, kieu){
   const p = phieuList.find(x=>x.id===id);
   if(!p) return;
-  const lichSu = await addLichSu(id, 'Dự kiến có vật tư lúc '+fmtDateTime(target));
+  const nhanLabel = kieu==='ngay' ? ('Dự kiến Vật Tư: '+fmtDuKienNgay(target)) : ('Dự kiến có vật tư lúc '+fmtDateTime(target));
+  const lichSu = await addLichSu(id, nhanLabel);
   try{
-    await db.collection('cd_phieusuachua').doc(id).update({ vatTuDuKien: target, lichSu });
+    await db.collection('cd_phieusuachua').doc(id).update({ vatTuDuKien: target, vatTuHenKieu: kieu, vatTuDaNhac: [], lichSu });
     logHoatDong("Cập nhật vật tư dự kiến", p.maPhieu);
     showToast("Đã ghi nhận thời gian dự kiến có vật tư");
     closeModal();
   }catch(e){ console.error(e); showToast("Lỗi: "+e.message); }
+}
+function renderVtCountdown(ts, kieu){
+  const target = toJsDate(ts);
+  if(!target) return '';
+  if(kieu==='ngay') return fmtDuKienNgay(target);
+  const diffMs = target - new Date();
+  if(diffMs<=0){
+    const overMin = Math.round(-diffMs/60000);
+    if(overMin<60) return `⚠️ Quá hẹn ${overMin} phút`;
+    const overH = Math.floor(overMin/60), remM = overMin%60;
+    return `⚠️ Quá hẹn ${overH}h${remM?(' '+remM+'p'):''}`;
+  }
+  const mins = Math.round(diffMs/60000);
+  if(mins<60) return `Dự kiến có vật tư sau ${mins} phút nữa`;
+  const h = Math.floor(mins/60), m = mins%60;
+  return `Dự kiến có vật tư sau ${h}h${m?(' '+m+'p'):''} nữa`;
+}
+function refreshVtCountdowns(){
+  document.querySelectorAll('.vt-countdown').forEach(el=>{
+    const target = new Date(Number(el.dataset.target));
+    const kieu = el.dataset.kieu;
+    el.textContent = renderVtCountdown(target, kieu);
+    if(kieu!=='ngay') el.style.color = (target - new Date() <= 0) ? 'var(--danger)' : '';
+  });
+}
+setInterval(refreshVtCountdowns, 30000);
+function fmtDuKienNgay(target){
+  const now = new Date();
+  const t0 = new Date(now.getFullYear(),now.getMonth(),now.getDate());
+  const d0 = new Date(target.getFullYear(),target.getMonth(),target.getDate());
+  const diffDays = Math.round((d0-t0)/(1000*60*60*24));
+  if(diffDays===1) return 'Ngày mai';
+  if(diffDays===0) return 'Hôm nay';
+  return target.toLocaleDateString('vi-VN');
 }
 let pendingPhotosVatTu = [];
 function renderPhotoGridVatTu(){
